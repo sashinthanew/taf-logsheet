@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './AdminDashboard.css';
+import API_BASE_URL from '../config/api';
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [formData, setFormData] = useState({
@@ -256,7 +257,7 @@ const AdminDashboard = ({ user, onLogout }) => {
   const fetchProjects = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/projects', {
+      const response = await fetch(`${API_BASE_URL}/api/projects`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -640,33 +641,72 @@ const AdminDashboard = ({ user, onLogout }) => {
   const handleExportToExcel = async () => {
     try {
       setLoading(true);
+      setError(''); // Clear previous errors
+      setSuccess(''); // Clear previous success
+      
+      console.log('Starting Excel export...');
+      console.log('Total projects:', projects.length);
+      
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:5000/api/projects/export/excel', {
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      console.log('Fetching Excel file from server...');
+      const response = await fetch(`${API_BASE_URL}/api/projects/export/excel`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response content-type:', response.headers.get('content-type'));
+
       if (!response.ok) {
-        throw new Error('Failed to export');
+        // Try to parse JSON error message
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to export');
+        }
+        throw new Error(`Server error: ${response.status}`);
       }
 
+      // Check if response is JSON (error) or Excel file
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.message || 'No projects to export');
+        }
+      }
+
+      console.log('Creating blob from response...');
       const blob = await response.blob();
+      console.log('Blob size:', blob.size, 'bytes');
+      
+      if (blob.size === 0) {
+        throw new Error('Received empty file from server');
+      }
+      
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `TWL_Projects_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(link);
+      console.log('Triggering download...');
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
       
+      console.log('Excel export completed successfully');
       setSuccess('✓ Excel report downloaded successfully!');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
-      setError('Failed to export to Excel. Please try again.');
+      console.error('Error details:', error.message);
+      setError(`Failed to export: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -1963,37 +2003,3 @@ const AdminDashboard = ({ user, onLogout }) => {
 
 export default AdminDashboard;
 
-const handleExportToExcel = async () => {
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('token');
-    
-    const response = await fetch('http://localhost:5000/api/projects/export/excel', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to export');
-    }
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `TWL_Projects_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    
-    setSuccess('✓ Excel report downloaded successfully!');
-  } catch (error) {
-    console.error('Error exporting to Excel:', error);
-    setError('Failed to export to Excel. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};

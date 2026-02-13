@@ -4,34 +4,10 @@ const Project = require('../models/Project');
 const auth = require('../middleware/auth');
 const ExcelJS = require('exceljs');
 
-// Get all projects
-router.get('/', auth, async (req, res) => {
-  try {
-    const projects = await Project.find().sort({ createdAt: -1 });
-    res.json({ success: true, projects });
-  } catch (error) {
-    console.error('Error fetching projects:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// Get single project
-router.get('/:id', auth, async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ success: false, message: 'Project not found' });
-    }
-    res.json({ success: true, project });
-  } catch (error) {
-    console.error('Error fetching project:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// Export all projects to Excel - SINGLE TABLE FORMAT
+// IMPORTANT: Export route MUST come BEFORE /:id route
 router.get('/export/excel', auth, async (req, res) => {
   try {
+    console.log('Excel export route hit');
     console.log('Starting Excel export...');
     
     // Fetch all projects
@@ -39,6 +15,7 @@ router.get('/export/excel', auth, async (req, res) => {
     console.log(`Found ${projects.length} projects to export`);
 
     if (projects.length === 0) {
+      console.log('No projects found');
       return res.status(404).json({ success: false, message: 'No projects found to export' });
     }
 
@@ -50,138 +27,89 @@ router.get('/export/excel', auth, async (req, res) => {
       pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true }
     });
 
-    // Title Row
-    worksheet.mergeCells('A1:AZ1');
-    const titleRow = worksheet.getCell('A1');
-    titleRow.value = '🏢 TWL SYSTEM - COMPREHENSIVE PROJECTS REPORT';
-    titleRow.font = { size: 20, bold: true, color: { argb: 'FFFFFFFF' } };
-    titleRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF667EEA' }
-    };
-    titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
-    worksheet.getRow(1).height = 40;
-
-    // Date Row
-    worksheet.mergeCells('A2:AZ2');
-    const dateRow = worksheet.getCell('A2');
-    dateRow.value = `Generated on: ${new Date().toLocaleString()} | Total Projects: ${projects.length}`;
-    dateRow.font = { size: 11, italic: true, bold: true };
-    dateRow.alignment = { horizontal: 'center' };
-    dateRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFF3F4F6' }
-    };
-    worksheet.getRow(2).height = 25;
-
-    // Empty row
-    worksheet.getRow(3).height = 10;
-
-    // HEADER ROW - Define all columns
-    const headerRow = worksheet.getRow(4);
-    const headers = [
+    // Define ALL columns with their keys FIRST - This is critical!
+    worksheet.columns = [
       // Project Info (3)
-      { header: 'Project No', key: 'projectNo', width: 15, color: 'FF4A5568' },
-      { header: 'Project Name', key: 'projectName', width: 25, color: 'FF4A5568' },
-      { header: 'Project Date', key: 'projectDate', width: 15, color: 'FF4A5568' },
+      { header: 'Project No', key: 'projectNo', width: 15 },
+      { header: 'Project Name', key: 'projectName', width: 25 },
+      { header: 'Project Date', key: 'projectDate', width: 15 },
       
       // Supplier - Proforma Invoice (5)
-      { header: 'Supplier Name', key: 'supplierName', width: 20, color: 'FF10B981' },
-      { header: 'Supplier Invoice No', key: 'supplierInvoiceNo', width: 18, color: 'FF10B981' },
-      { header: 'Supplier Invoice Amt', key: 'supplierInvoiceAmount', width: 18, color: 'FF10B981' },
-      { header: 'Supplier Credit Note', key: 'supplierCreditNote', width: 18, color: 'FF10B981' },
-      { header: 'Supplier Final Invoice', key: 'supplierFinalInvoice', width: 20, color: 'FF10B981' },
+      { header: 'Supplier Name', key: 'supplierName', width: 20 },
+      { header: 'Supplier Invoice No', key: 'supplierInvoiceNo', width: 18 },
+      { header: 'Supplier Invoice Amt', key: 'supplierInvoiceAmount', width: 18 },
+      { header: 'Supplier Credit Note', key: 'supplierCreditNote', width: 18 },
+      { header: 'Supplier Final Invoice', key: 'supplierFinalInvoice', width: 20 },
       
       // Supplier - Advance Payment (6)
-      { header: 'Loan Amount', key: 'loanAmount', width: 15, color: 'FF059669' },
-      { header: 'Advance Payment Date', key: 'advancePaymentDate', width: 18, color: 'FF059669' },
-      { header: 'Advance Reference', key: 'advanceReference', width: 18, color: 'FF059669' },
-      { header: 'TWL Contribution (Adv)', key: 'twlContributionAdv', width: 20, color: 'FF059669' },
-      { header: 'Total Payment (Adv)', key: 'totalPaymentAdv', width: 18, color: 'FF059669' },
-      { header: 'Balance Amount (Adv)', key: 'balanceAmountAdv', width: 18, color: 'FF059669' },
+      { header: 'Loan Amount', key: 'loanAmount', width: 15 },
+      { header: 'Advance Payment Date', key: 'advancePaymentDate', width: 18 },
+      { header: 'Advance Reference', key: 'advanceReference', width: 18 },
+      { header: 'TWL Contribution (Adv)', key: 'twlContributionAdv', width: 20 },
+      { header: 'Total Payment (Adv)', key: 'totalPaymentAdv', width: 18 },
+      { header: 'Balance Amount (Adv)', key: 'balanceAmountAdv', width: 18 },
       
       // Supplier - Balance Payment (5)
-      { header: 'Supplier Balance Amt', key: 'supplierBalanceAmount', width: 18, color: 'FF047857' },
-      { header: 'Supplier Balance Date', key: 'supplierBalanceDate', width: 18, color: 'FF047857' },
-      { header: 'Supplier Balance Ref', key: 'supplierBalanceRef', width: 18, color: 'FF047857' },
-      { header: 'TWL Contribution (Bal)', key: 'twlContributionBal', width: 20, color: 'FF047857' },
-      { header: 'Total Payment (Bal)', key: 'totalPaymentBal', width: 18, color: 'FF047857' },
+      { header: 'Supplier Balance Amt', key: 'supplierBalanceAmount', width: 18 },
+      { header: 'Supplier Balance Date', key: 'supplierBalanceDate', width: 18 },
+      { header: 'Supplier Balance Ref', key: 'supplierBalanceRef', width: 18 },
+      { header: 'TWL Contribution (Bal)', key: 'twlContributionBal', width: 20 },
+      { header: 'Total Payment (Bal)', key: 'totalPaymentBal', width: 18 },
       
       // Supplier - Summary (3)
-      { header: 'Supplier Total Amt', key: 'supplierTotalAmount', width: 18, color: 'FF065F46' },
-      { header: 'Supplier Cancel Amt', key: 'supplierCancelAmount', width: 18, color: 'FF065F46' },
-      { header: 'Supplier Balance Pay', key: 'supplierBalancePayment', width: 20, color: 'FF065F46' },
+      { header: 'Supplier Total Amt', key: 'supplierTotalAmount', width: 18 },
+      { header: 'Supplier Cancel Amt', key: 'supplierCancelAmount', width: 18 },
+      { header: 'Supplier Balance Pay', key: 'supplierBalancePayment', width: 20 },
       
       // Buyer - Proforma Invoice (9)
-      { header: 'Buyer Name', key: 'buyerName', width: 20, color: 'FF3B82F6' },
-      { header: 'Buyer Invoice No', key: 'buyerInvoiceNo', width: 18, color: 'FF3B82F6' },
-      { header: 'Buyer Invoice Date', key: 'buyerInvoiceDate', width: 18, color: 'FF3B82F6' },
-      { header: 'TWL Invoice Amount', key: 'twlInvoiceAmount', width: 18, color: 'FF3B82F6' },
-      { header: 'Buyer Credit Note', key: 'buyerCreditNote', width: 18, color: 'FF3B82F6' },
-      { header: 'Bank Interest', key: 'bankInterest', width: 15, color: 'FF3B82F6' },
-      { header: 'Freight Charges', key: 'freightCharges', width: 15, color: 'FF3B82F6' },
-      { header: 'Commission', key: 'commission', width: 15, color: 'FF3B82F6' },
-      { header: 'Buyer Final Invoice', key: 'buyerFinalInvoice', width: 18, color: 'FF3B82F6' },
+      { header: 'Buyer Name', key: 'buyerName', width: 20 },
+      { header: 'Buyer Invoice No', key: 'buyerInvoiceNo', width: 18 },
+      { header: 'Buyer Invoice Date', key: 'buyerInvoiceDate', width: 18 },
+      { header: 'TWL Invoice Amount', key: 'twlInvoiceAmount', width: 18 },
+      { header: 'Buyer Credit Note', key: 'buyerCreditNote', width: 18 },
+      { header: 'Bank Interest', key: 'bankInterest', width: 15 },
+      { header: 'Freight Charges', key: 'freightCharges', width: 15 },
+      { header: 'Commission', key: 'commission', width: 15 },
+      { header: 'Buyer Final Invoice', key: 'buyerFinalInvoice', width: 18 },
       
       // Buyer - Advance Payment (4)
-      { header: 'Buyer Advance TWL', key: 'buyerAdvanceTwl', width: 18, color: 'FF2563EB' },
-      { header: 'Buyer Advance Balance', key: 'buyerAdvanceBalance', width: 20, color: 'FF2563EB' },
-      { header: 'Buyer Advance Date', key: 'buyerAdvanceDate', width: 18, color: 'FF2563EB' },
-      { header: 'Buyer Advance Ref', key: 'buyerAdvanceRef', width: 18, color: 'FF2563EB' },
+      { header: 'Buyer Advance TWL', key: 'buyerAdvanceTwl', width: 18 },
+      { header: 'Buyer Advance Balance', key: 'buyerAdvanceBalance', width: 20 },
+      { header: 'Buyer Advance Date', key: 'buyerAdvanceDate', width: 18 },
+      { header: 'Buyer Advance Ref', key: 'buyerAdvanceRef', width: 18 },
       
       // Buyer - Balance Payment (3)
-      { header: 'Buyer Balance TWL', key: 'buyerBalanceTwl', width: 18, color: 'FF1E40AF' },
-      { header: 'Buyer Balance Date', key: 'buyerBalanceDate', width: 18, color: 'FF1E40AF' },
-      { header: 'Buyer Balance Ref', key: 'buyerBalanceRef', width: 18, color: 'FF1E40AF' },
+      { header: 'Buyer Balance TWL', key: 'buyerBalanceTwl', width: 18 },
+      { header: 'Buyer Balance Date', key: 'buyerBalanceDate', width: 18 },
+      { header: 'Buyer Balance Ref', key: 'buyerBalanceRef', width: 18 },
       
       // Buyer - Summary (3)
-      { header: 'Buyer Total Received', key: 'buyerTotalReceived', width: 18, color: 'FF1E3A8A' },
-      { header: 'Buyer Cancel', key: 'buyerCancel', width: 15, color: 'FF1E3A8A' },
-      { header: 'Buyer Balance Received', key: 'buyerBalanceReceived', width: 20, color: 'FF1E3A8A' },
+      { header: 'Buyer Total Received', key: 'buyerTotalReceived', width: 18 },
+      { header: 'Buyer Cancel', key: 'buyerCancel', width: 15 },
+      { header: 'Buyer Balance Received', key: 'buyerBalanceReceived', width: 20 },
       
       // Costing (12)
-      { header: 'Costing Supplier Inv', key: 'costingSupplierInvoice', width: 18, color: 'FFFBBF24' },
-      { header: 'Costing TWL Invoice', key: 'costingTwlInvoice', width: 18, color: 'FFFBBF24' },
-      { header: 'Profit', key: 'profit', width: 15, color: 'FFF59E0B' },
-      { header: 'In Going', key: 'inGoing', width: 15, color: 'FFEF4444' },
-      { header: 'Out Going', key: 'outGoing', width: 15, color: 'FFEF4444' },
-      { header: 'CAL Charges', key: 'calCharges', width: 15, color: 'FFEF4444' },
-      { header: 'Other', key: 'other', width: 15, color: 'FFEF4444' },
-      { header: 'Foreign Bank Charges', key: 'foreignBankCharges', width: 20, color: 'FFEF4444' },
-      { header: 'Loan Interest', key: 'loanInterest', width: 15, color: 'FFEF4444' },
-      { header: 'Freight Charges', key: 'freightChargesCost', width: 18, color: 'FFEF4444' },
-      { header: 'Total Expenses', key: 'totalExpenses', width: 15, color: 'FFDC2626' },
-      { header: 'NET PROFIT', key: 'netProfit', width: 18, color: 'FF16A34A' }
+      { header: 'Costing Supplier Inv', key: 'costingSupplierInvoice', width: 18 },
+      { header: 'Costing TWL Invoice', key: 'costingTwlInvoice', width: 18 },
+      { header: 'Profit', key: 'profit', width: 15 },
+      { header: 'In Going', key: 'inGoing', width: 15 },
+      { header: 'Out Going', key: 'outGoing', width: 15 },
+      { header: 'CAL Charges', key: 'calCharges', width: 15 },
+      { header: 'Other', key: 'other', width: 15 },
+      { header: 'Foreign Bank Charges', key: 'foreignBankCharges', width: 20 },
+      { header: 'Loan Interest', key: 'loanInterest', width: 15 },
+      { header: 'Freight Charges (Cost)', key: 'freightChargesCost', width: 18 },
+      { header: 'Total Expenses', key: 'totalExpenses', width: 15 },
+      { header: 'NET PROFIT', key: 'netProfit', width: 18 }
     ];
-
-    // Set column widths and create header
-    headers.forEach((col, index) => {
-      worksheet.getColumn(index + 1).width = col.width;
-      const cell = headerRow.getCell(index + 1);
-      cell.value = col.header;
-      cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: col.color }
-      };
-      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-      cell.border = {
-        top: { style: 'medium', color: { argb: 'FF000000' } },
-        bottom: { style: 'medium', color: { argb: 'FF000000' } },
-        left: { style: 'thin', color: { argb: 'FF000000' } },
-        right: { style: 'thin', color: { argb: 'FF000000' } }
-      };
-    });
-    headerRow.height = 35;
 
     console.log('Adding project data to Excel...');
 
-    // Add data rows
+    // Add data rows - worksheet.addRow() will now automatically map by key
     projects.forEach((project, index) => {
-      const rowData = {
+      console.log(`Processing project ${index + 1}: ${project.projectName}`);
+      
+      worksheet.addRow({
         // Project Info
         projectNo: project.projectNo || '',
         projectName: project.projectName || '',
@@ -254,11 +182,58 @@ router.get('/export/excel', auth, async (req, res) => {
         freightChargesCost: project.costing?.freightCharges || 0,
         totalExpenses: project.costing?.total || 0,
         netProfit: project.costing?.netProfit || 0
+      });
+    });
+
+    console.log('Styling the worksheet...');
+
+    // Style header row (row 1) with colors
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 35;
+    
+    const colorMap = [
+      // Project (3) - Gray
+      'FF4A5568', 'FF4A5568', 'FF4A5568',
+      // Supplier Proforma (5) - Green shades
+      'FF10B981', 'FF10B981', 'FF10B981', 'FF10B981', 'FF10B981',
+      // Supplier Advance (6) - Darker green
+      'FF059669', 'FF059669', 'FF059669', 'FF059669', 'FF059669', 'FF059669',
+      // Supplier Balance (5) - Even darker green
+      'FF047857', 'FF047857', 'FF047857', 'FF047857', 'FF047857',
+      // Supplier Summary (3) - Darkest green
+      'FF065F46', 'FF065F46', 'FF065F46',
+      // Buyer Proforma (9) - Blue shades
+      'FF3B82F6', 'FF3B82F6', 'FF3B82F6', 'FF3B82F6', 'FF3B82F6', 'FF3B82F6', 'FF3B82F6', 'FF3B82F6', 'FF3B82F6',
+      // Buyer Advance (4) - Darker blue
+      'FF2563EB', 'FF2563EB', 'FF2563EB', 'FF2563EB',
+      // Buyer Balance (3) - Even darker blue
+      'FF1E40AF', 'FF1E40AF', 'FF1E40AF',
+      // Buyer Summary (3) - Darkest blue
+      'FF1E3A8A', 'FF1E3A8A', 'FF1E3A8A',
+      // Costing (12) - Yellow and red
+      'FFFBBF24', 'FFFBBF24', 'FFF59E0B', 'FFEF4444', 'FFEF4444', 'FFEF4444', 'FFEF4444', 'FFEF4444', 'FFEF4444', 'FFEF4444', 'FFDC2626', 'FF16A34A'
+    ];
+
+    headerRow.eachCell((cell, colNumber) => {
+      cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: colorMap[colNumber - 1] || 'FF4A5568' }
       };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FF000000' } },
+        bottom: { style: 'medium', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } }
+      };
+    });
 
-      const row = worksheet.addRow(rowData);
-
-      // Style data rows
+    // Style data rows
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // Skip header
+      
       row.height = 25;
       row.eachCell((cell, colNumber) => {
         // Borders
@@ -269,7 +244,7 @@ router.get('/export/excel', auth, async (req, res) => {
           right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
         };
 
-        // Alignment and formatting
+        // Number formatting
         if (typeof cell.value === 'number') {
           cell.alignment = { vertical: 'middle', horizontal: 'right' };
           cell.numFmt = '$#,##0.00';
@@ -278,13 +253,7 @@ router.get('/export/excel', auth, async (req, res) => {
         }
 
         // Alternate row colors
-        if (index % 2 === 0) {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' }
-          };
-        } else {
+        if (rowNumber % 2 === 0) {
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
@@ -292,8 +261,8 @@ router.get('/export/excel', auth, async (req, res) => {
           };
         }
 
-        // NET PROFIT column (last column)
-        if (colNumber === headers.length) {
+        // NET PROFIT column highlighting (last column = 52)
+        if (colNumber === 52) {
           const netProfit = cell.value || 0;
           if (netProfit >= 0) {
             cell.font = { bold: true, color: { argb: 'FF047857' }, size: 11 };
@@ -310,102 +279,19 @@ router.get('/export/excel', auth, async (req, res) => {
               fgColor: { argb: 'FFFEE2E2' }
             };
           }
-          cell.border = {
-            ...cell.border,
-            left: { style: 'medium', color: { argb: 'FF000000' } },
-            right: { style: 'medium', color: { argb: 'FF000000' } }
-          };
-        }
-
-        // Profit column
-        if (colNumber === headers.length - 9) {
-          cell.font = { bold: true, size: 10 };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFEF3C7' }
-          };
-        }
-
-        // Supplier Final Invoice (column 8)
-        if (colNumber === 8) {
-          cell.font = { bold: true, size: 10 };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: index % 2 === 0 ? 'FFD1FAE5' : 'FFB7F0D4' }
-          };
-        }
-
-        // Buyer Final Invoice (column 32)
-        if (colNumber === 32) {
-          cell.font = { bold: true, size: 10 };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: index % 2 === 0 ? 'FFBFDBFE' : 'FF93C5FD' }
-          };
         }
       });
     });
 
-    console.log('Adding summary row...');
-
-    // Add summary row at the bottom
-    const summaryRowNum = projects.length + 5;
-    const summaryRow = worksheet.getRow(summaryRowNum);
-    summaryRow.height = 30;
-    
-    // Merge cells for "TOTAL" label
-    worksheet.mergeCells(summaryRowNum, 1, summaryRowNum, 3);
-    const totalLabelCell = summaryRow.getCell(1);
-    totalLabelCell.value = 'TOTAL SUMMARY';
-    totalLabelCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-    totalLabelCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF1F2937' }
-    };
-    totalLabelCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    totalLabelCell.border = {
-      top: { style: 'double', color: { argb: 'FF000000' } },
-      bottom: { style: 'double', color: { argb: 'FF000000' } },
-      left: { style: 'double', color: { argb: 'FF000000' } },
-      right: { style: 'double', color: { argb: 'FF000000' } }
-    };
-
-    // Calculate and add totals for numeric columns (skip text columns)
-    const numericColumnIndices = [6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 26, 27, 28, 29, 30, 31, 33, 34, 37, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52];
-    
-    numericColumnIndices.forEach(colIndex => {
-      const cell = summaryRow.getCell(colIndex);
-      const columnLetter = worksheet.getColumn(colIndex).letter;
-      cell.value = { formula: `SUM(${columnLetter}5:${columnLetter}${summaryRowNum - 1})` };
-      cell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF1F2937' }
-      };
-      cell.alignment = { vertical: 'middle', horizontal: 'right' };
-      cell.numFmt = '$#,##0.00';
-      cell.border = {
-        top: { style: 'double', color: { argb: 'FF000000' } },
-        bottom: { style: 'double', color: { argb: 'FF000000' } },
-        left: { style: 'thin', color: { argb: 'FF000000' } },
-        right: { style: 'thin', color: { argb: 'FF000000' } }
-      };
-    });
-
-    // Freeze panes (freeze header rows and first 3 columns)
+    // Freeze panes (header row)
     worksheet.views = [
-      { state: 'frozen', xSplit: 3, ySplit: 4 }
+      { state: 'frozen', ySplit: 1 }
     ];
 
-    // Auto-filter
+    // Auto-filter on header
     worksheet.autoFilter = {
-      from: { row: 4, column: 1 },
-      to: { row: 4, column: headers.length }
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: 52 }
     };
 
     console.log('Generating Excel file...');
@@ -421,7 +307,33 @@ router.get('/export/excel', auth, async (req, res) => {
 
   } catch (error) {
     console.error('Error exporting to Excel:', error);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ success: false, message: 'Failed to export to Excel', error: error.message });
+  }
+});
+
+// Get all projects
+router.get('/', auth, async (req, res) => {
+  try {
+    const projects = await Project.find().sort({ createdAt: -1 });
+    res.json({ success: true, projects });
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get single project
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error('Error fetching project:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
