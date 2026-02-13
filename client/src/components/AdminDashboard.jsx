@@ -10,11 +10,15 @@ const AdminDashboard = ({ user, onLogout }) => {
     
     // Supplier - Proforma Invoice
     supplierName: '',
+    supplierInvoiceNumber: '',
+    supplierInvoiceAmount: '',
     creditNote: '',
     finalInvoiceAmount: '',
     
     // Supplier - Advance Payment
     loanAmount: '',
+    advancePaymentDate: '',
+    advanceReferenceNumber: '',
     twlContribution: '',
     totalPayment: '',
     balanceAmount: '',
@@ -23,6 +27,13 @@ const AdminDashboard = ({ user, onLogout }) => {
     supplierBalanceAmount: '',
     supplierBalanceDate: '',
     supplierBalanceReference: '',
+    supplierBalanceTwlContribution: '',
+    supplierBalanceTotalPayment: '',
+    
+    // Supplier - Summary
+    supplierTotalAmount: '',
+    supplierCancelAmount: '',
+    supplierSummaryBalancePayment: '',
     
     // Buyer - Proforma Invoice
     buyerProformaInvoiceNo: '',
@@ -38,9 +49,28 @@ const AdminDashboard = ({ user, onLogout }) => {
     buyerBalanceAmount: '',
     buyerBalanceDate: '',
     buyerBalanceReference: '',
+    buyerBalanceTwlContribution: '',  // NEW
+    buyerBalanceTotalPayment: '',     // NEW
+    
+    // Buyer - Summary (NEW SECTION)
+    buyerTotalAmount: '',             // NEW
+    buyerCancelAmount: '',            // NEW
+    buyerSummaryBalancePayment: '',   // NEW
     
     // Costing
-    costingNotes: ''
+    costingNotes: '',
+    costingSupplierInvoiceAmount: '',
+    costingTwlInvoiceAmount: '',
+    costingProfit: '',
+    costingInGoing: '',
+    costingOutGoing: '',
+    costingCalCharges: '',
+    costingOther: '',
+    costingForeignBankCharges: '',
+    costingLoanInterest: '',
+    costingFreightCharges: '',
+    costingTotal: '',
+    costingNetProfit: '',
   });
   
   const [projects, setProjects] = useState([]);
@@ -68,6 +98,59 @@ const AdminDashboard = ({ user, onLogout }) => {
       balanceAmount: balance.toFixed(2)
     }));
   }, [formData.loanAmount, formData.twlContribution, formData.finalInvoiceAmount]);
+
+  // Auto-calculate supplier balance payment total
+  useEffect(() => {
+    const amount = parseFloat(formData.supplierBalanceAmount) || 0;
+    const twl = parseFloat(formData.supplierBalanceTwlContribution) || 0;
+    const total = amount + twl;
+    
+    setFormData(prev => ({
+      ...prev,
+      supplierBalanceTotalPayment: total.toFixed(2)
+    }));
+  }, [formData.supplierBalanceAmount, formData.supplierBalanceTwlContribution]);
+
+  // Auto-calculate final invoice amount
+  useEffect(() => {
+    const invoiceAmount = parseFloat(formData.supplierInvoiceAmount) || 0;
+    const creditNote = parseFloat(formData.creditNote) || 0;
+    const finalAmount = invoiceAmount - creditNote;
+    
+    setFormData(prev => ({
+      ...prev,
+      finalInvoiceAmount: finalAmount.toFixed(2)
+    }));
+  }, [formData.supplierInvoiceAmount, formData.creditNote]);
+
+  // Auto-calculate supplier summary
+  useEffect(() => {
+    const advanceTotalPayment = parseFloat(formData.totalPayment) || 0;
+    const balanceTotalPayment = parseFloat(formData.supplierBalanceTotalPayment) || 0;
+    const creditNote = parseFloat(formData.creditNote) || 0;
+    const finalInvoiceAmount = parseFloat(formData.finalInvoiceAmount) || 0;
+    
+    // Total Amount = Total Payment (Advance) + Total Payment (Balance)
+    const totalAmount = advanceTotalPayment + balanceTotalPayment;
+    
+    // Cancel Amount = Credit Note - Total Amount
+    const cancelAmount = creditNote - totalAmount;
+    
+    // Balance Payment = Final Invoice Amount - Total Amount
+    const balancePayment = finalInvoiceAmount - totalAmount;
+    
+    setFormData(prev => ({
+      ...prev,
+      supplierTotalAmount: totalAmount.toFixed(2),
+      supplierCancelAmount: cancelAmount.toFixed(2),
+      supplierSummaryBalancePayment: balancePayment.toFixed(2)
+    }));
+  }, [
+    formData.totalPayment,
+    formData.supplierBalanceTotalPayment,
+    formData.creditNote,
+    formData.finalInvoiceAmount
+  ]);
 
   // Auto-hide success/error messages after 5 seconds
   useEffect(() => {
@@ -120,11 +203,15 @@ const AdminDashboard = ({ user, onLogout }) => {
         supplier: {
           proformaInvoice: {
             supplierName: formData.supplierName,
+            invoiceNumber: formData.supplierInvoiceNumber,
+            invoiceAmount: parseFloat(formData.supplierInvoiceAmount) || 0,
             creditNote: formData.creditNote,
             finalInvoiceAmount: parseFloat(formData.finalInvoiceAmount) || 0
           },
           advancePayment: {
             loanAmount: parseFloat(formData.loanAmount) || 0,
+            paymentDate: formData.advancePaymentDate,
+            referenceNumber: formData.advanceReferenceNumber,
             twlContribution: parseFloat(formData.twlContribution) || 0,
             totalPayment: parseFloat(formData.totalPayment) || 0,
             balanceAmount: parseFloat(formData.balanceAmount) || 0
@@ -132,7 +219,14 @@ const AdminDashboard = ({ user, onLogout }) => {
           balancePayment: {
             amount: parseFloat(formData.supplierBalanceAmount) || 0,
             date: formData.supplierBalanceDate,
-            reference: formData.supplierBalanceReference
+            reference: formData.supplierBalanceReference,
+            twlContribution: parseFloat(formData.supplierBalanceTwlContribution) || 0,
+            totalPayment: parseFloat(formData.supplierBalanceTotalPayment) || 0
+          },
+          summary: {
+            totalAmount: parseFloat(formData.supplierTotalAmount) || 0,
+            cancelAmount: parseFloat(formData.supplierCancelAmount) || 0,
+            balancePayment: parseFloat(formData.supplierSummaryBalancePayment) || 0
           }
         },
         buyer: {
@@ -149,10 +243,29 @@ const AdminDashboard = ({ user, onLogout }) => {
           balancePayment: {
             amount: parseFloat(formData.buyerBalanceAmount) || 0,
             date: formData.buyerBalanceDate,
-            reference: formData.buyerBalanceReference
+            reference: formData.buyerBalanceReference,
+            twlContribution: parseFloat(formData.buyerBalanceTwlContribution) || 0,  // NEW
+            totalPayment: parseFloat(formData.buyerBalanceTotalPayment) || 0         // NEW
+          },
+          summary: {  // NEW SECTION
+            totalAmount: parseFloat(formData.buyerTotalAmount) || 0,
+            cancelAmount: parseFloat(formData.buyerCancelAmount) || 0,
+            balancePayment: parseFloat(formData.buyerSummaryBalancePayment) || 0
           }
         },
         costing: {
+          supplierInvoiceAmount: parseFloat(formData.costingSupplierInvoiceAmount) || 0,
+          twlInvoiceAmount: parseFloat(formData.costingTwlInvoiceAmount) || 0,
+          profit: parseFloat(formData.costingProfit) || 0,
+          inGoing: parseFloat(formData.costingInGoing) || 0,
+          outGoing: parseFloat(formData.costingOutGoing) || 0,
+          calCharges: parseFloat(formData.costingCalCharges) || 0,
+          other: parseFloat(formData.costingOther) || 0,
+          foreignBankCharges: parseFloat(formData.costingForeignBankCharges) || 0,
+          loanInterest: parseFloat(formData.costingLoanInterest) || 0,
+          freightCharges: parseFloat(formData.costingFreightCharges) || 0,
+          total: parseFloat(formData.costingTotal) || 0,
+          netProfit: parseFloat(formData.costingNetProfit) || 0,
           notes: formData.costingNotes
         }
       };
@@ -197,15 +310,24 @@ const AdminDashboard = ({ user, onLogout }) => {
       projectNo: '',
       projectDate: '',
       supplierName: '',
+      supplierInvoiceNumber: '',
+      supplierInvoiceAmount: '',
       creditNote: '',
       finalInvoiceAmount: '',
       loanAmount: '',
+      advancePaymentDate: '',
+      advanceReferenceNumber: '',
       twlContribution: '',
       totalPayment: '',
       balanceAmount: '',
       supplierBalanceAmount: '',
       supplierBalanceDate: '',
       supplierBalanceReference: '',
+      supplierBalanceTwlContribution: '',
+      supplierBalanceTotalPayment: '',
+      supplierTotalAmount: '',
+      supplierCancelAmount: '',
+      supplierSummaryBalancePayment: '',
       buyerProformaInvoiceNo: '',
       buyerProformaInvoiceDate: '',
       buyerProformaAmount: '',
@@ -215,7 +337,24 @@ const AdminDashboard = ({ user, onLogout }) => {
       buyerBalanceAmount: '',
       buyerBalanceDate: '',
       buyerBalanceReference: '',
-      costingNotes: ''
+      buyerBalanceTwlContribution: '',   // NEW
+      buyerBalanceTotalPayment: '',      // NEW
+      buyerTotalAmount: '',              // NEW
+      buyerCancelAmount: '',             // NEW
+      buyerSummaryBalancePayment: '',    // NEW
+      costingNotes: '',
+      costingSupplierInvoiceAmount: '',
+      costingTwlInvoiceAmount: '',
+      costingProfit: '',
+      costingInGoing: '',
+      costingOutGoing: '',
+      costingCalCharges: '',
+      costingOther: '',
+      costingForeignBankCharges: '',
+      costingLoanInterest: '',
+      costingFreightCharges: '',
+      costingTotal: '',
+      costingNetProfit: '',
     });
     setEditingProject(null);
   };
@@ -227,15 +366,24 @@ const AdminDashboard = ({ user, onLogout }) => {
       projectNo: project.projectNo,
       projectDate: project.projectDate?.split('T')[0] || '',
       supplierName: project.supplier?.proformaInvoice?.supplierName || '',
+      supplierInvoiceNumber: project.supplier?.proformaInvoice?.invoiceNumber || '',
+      supplierInvoiceAmount: project.supplier?.proformaInvoice?.invoiceAmount || '',
       creditNote: project.supplier?.proformaInvoice?.creditNote || '',
       finalInvoiceAmount: project.supplier?.proformaInvoice?.finalInvoiceAmount || '',
       loanAmount: project.supplier?.advancePayment?.loanAmount || '',
+      advancePaymentDate: project.supplier?.advancePayment?.paymentDate?.split('T')[0] || '',
+      advanceReferenceNumber: project.supplier?.advancePayment?.referenceNumber || '',
       twlContribution: project.supplier?.advancePayment?.twlContribution || '',
       totalPayment: project.supplier?.advancePayment?.totalPayment || '',
       balanceAmount: project.supplier?.advancePayment?.balanceAmount || '',
       supplierBalanceAmount: project.supplier?.balancePayment?.amount || '',
       supplierBalanceDate: project.supplier?.balancePayment?.date?.split('T')[0] || '',
       supplierBalanceReference: project.supplier?.balancePayment?.reference || '',
+      supplierBalanceTwlContribution: project.supplier?.balancePayment?.twlContribution || '',
+      supplierBalanceTotalPayment: project.supplier?.balancePayment?.totalPayment || '',
+      supplierTotalAmount: project.supplier?.summary?.totalAmount || '',
+      supplierCancelAmount: project.supplier?.summary?.cancelAmount || '',
+      supplierSummaryBalancePayment: project.supplier?.summary?.balancePayment || '',
       buyerProformaInvoiceNo: project.buyer?.proformaInvoice?.invoiceNo || '',
       buyerProformaInvoiceDate: project.buyer?.proformaInvoice?.invoiceDate?.split('T')[0] || '',
       buyerProformaAmount: project.buyer?.proformaInvoice?.amount || '',
@@ -245,6 +393,11 @@ const AdminDashboard = ({ user, onLogout }) => {
       buyerBalanceAmount: project.buyer?.balancePayment?.amount || '',
       buyerBalanceDate: project.buyer?.balancePayment?.date?.split('T')[0] || '',
       buyerBalanceReference: project.buyer?.balancePayment?.reference || '',
+      buyerBalanceTwlContribution: project.buyer?.balancePayment?.twlContribution || '',   // NEW
+      buyerBalanceTotalPayment: project.buyer?.balancePayment?.totalPayment || '',        // NEW
+      buyerTotalAmount: project.buyer?.summary?.totalAmount || '',                        // NEW
+      buyerCancelAmount: project.buyer?.summary?.cancelAmount || '',                      // NEW
+      buyerSummaryBalancePayment: project.buyer?.summary?.balancePayment || '',           // NEW
       costingNotes: project.costing?.notes || ''
     });
     setShowForm(true);
@@ -411,28 +564,55 @@ const AdminDashboard = ({ user, onLogout }) => {
                     </div>
 
                     <div className="form-group">
-                      <label>Credit Note</label>
+                      <label>Supplier Invoice Number</label>
                       <input
                         type="text"
-                        name="creditNote"
-                        value={formData.creditNote}
+                        name="supplierInvoiceNumber"
+                        value={formData.supplierInvoiceNumber}
                         onChange={handleChange}
-                        placeholder="Enter credit note"
+                        placeholder="Enter invoice number"
                         disabled={loading}
                       />
                     </div>
 
                     <div className="form-group">
-                      <label>Final Invoice Amount ($)</label>
+                      <label>Supplier Invoice Amount ($)</label>
                       <input
                         type="number"
-                        name="finalInvoiceAmount"
-                        value={formData.finalInvoiceAmount}
+                        name="supplierInvoiceAmount"
+                        value={formData.supplierInvoiceAmount}
                         onChange={handleChange}
                         placeholder="0.00"
                         step="0.01"
                         min="0"
                         disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Credit Note ($)</label>
+                      <input
+                        type="number"
+                        name="creditNote"
+                        value={formData.creditNote}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Final Invoice Amount ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="finalInvoiceAmount"
+                        value={formData.finalInvoiceAmount}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
                       />
                     </div>
                   </div>
@@ -452,6 +632,29 @@ const AdminDashboard = ({ user, onLogout }) => {
                         placeholder="0.00"
                         step="0.01"
                         min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Payment Date</label>
+                      <input
+                        type="date"
+                        name="advancePaymentDate"
+                        value={formData.advancePaymentDate}
+                        onChange={handleChange}
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Reference Number</label>
+                      <input
+                        type="text"
+                        name="advanceReferenceNumber"
+                        value={formData.advanceReferenceNumber}
+                        onChange={handleChange}
+                        placeholder="Enter reference number"
                         disabled={loading}
                       />
                     </div>
@@ -536,6 +739,79 @@ const AdminDashboard = ({ user, onLogout }) => {
                         onChange={handleChange}
                         placeholder="Payment reference"
                         disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>TWL Contribution ($)</label>
+                      <input
+                        type="number"
+                        name="supplierBalanceTwlContribution"
+                        value={formData.supplierBalanceTwlContribution}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Total Payment ($)</label>
+                      <input
+                        type="number"
+                        name="supplierBalanceTotalPayment"
+                        value={formData.supplierBalanceTotalPayment}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Supplier Summary */}
+                <div className="subsection">
+                  <h4 className="subsection-title">Supplier Summary</h4>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Total Amount ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="supplierTotalAmount"
+                        value={formData.supplierTotalAmount}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Cancel Amount ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="supplierCancelAmount"
+                        value={formData.supplierCancelAmount}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Balance Payment ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="supplierSummaryBalancePayment"
+                        value={formData.supplierSummaryBalancePayment}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
                       />
                     </div>
                   </div>
@@ -672,6 +948,81 @@ const AdminDashboard = ({ user, onLogout }) => {
                         disabled={loading}
                       />
                     </div>
+
+                    <div className="form-group">
+                      <label>TWL Contribution ($)</label>
+                      <input
+                        type="number"
+                        name="buyerBalanceTwlContribution"
+                        value={formData.buyerBalanceTwlContribution}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Total Payment ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="buyerBalanceTotalPayment"
+                        value={formData.buyerBalanceTotalPayment}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* NEW: Buyer Summary Section */}
+                <div className="subsection">
+                  <h4 className="subsection-title">Buyer Summary</h4>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Total Amount ($)</label>
+                      <input
+                        type="number"
+                        name="buyerTotalAmount"
+                        value={formData.buyerTotalAmount}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Cancel Amount ($)</label>
+                      <input
+                        type="number"
+                        name="buyerCancelAmount"
+                        value={formData.buyerCancelAmount}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Balance Payment ($)</label>
+                      <input
+                        type="number"
+                        name="buyerSummaryBalancePayment"
+                        value={formData.buyerSummaryBalancePayment}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -679,6 +1030,174 @@ const AdminDashboard = ({ user, onLogout }) => {
               {/* COSTING SECTION */}
               <div className="form-card">
                 <h3 className="card-title">💰 COSTING</h3>
+                
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Supplier Invoice Amount ($)</label>
+                    <input
+                      type="number"
+                      name="costingSupplierInvoiceAmount"
+                      value={formData.costingSupplierInvoiceAmount}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>TWL Invoice Amount ($)</label>
+                    <input
+                      type="number"
+                      name="costingTwlInvoiceAmount"
+                      value={formData.costingTwlInvoiceAmount}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Profit ($)</label>
+                    <input
+                      type="number"
+                      name="costingProfit"
+                      value={formData.costingProfit}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>In Going ($)</label>
+                    <input
+                      type="number"
+                      name="costingInGoing"
+                      value={formData.costingInGoing}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Out Going ($)</label>
+                    <input
+                      type="number"
+                      name="costingOutGoing"
+                      value={formData.costingOutGoing}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>CAL Charges ($)</label>
+                    <input
+                      type="number"
+                      name="costingCalCharges"
+                      value={formData.costingCalCharges}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Other ($)</label>
+                    <input
+                      type="number"
+                      name="costingOther"
+                      value={formData.costingOther}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Foreign Bank Charges ($)</label>
+                    <input
+                      type="number"
+                      name="costingForeignBankCharges"
+                      value={formData.costingForeignBankCharges}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Loan Interest ($)</label>
+                    <input
+                      type="number"
+                      name="costingLoanInterest"
+                      value={formData.costingLoanInterest}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Freight Charges ($)</label>
+                    <input
+                      type="number"
+                      name="costingFreightCharges"
+                      value={formData.costingFreightCharges}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Total ($) <span className="auto-calc">Auto-calculated</span></label>
+                    <input
+                      type="number"
+                      name="costingTotal"
+                      value={formData.costingTotal}
+                      readOnly
+                      placeholder="0.00"
+                      disabled
+                      className="readonly-field"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Net Profit ($) <span className="auto-calc">Auto-calculated</span></label>
+                    <input
+                      type="number"
+                      name="costingNetProfit"
+                      value={formData.costingNetProfit}
+                      readOnly
+                      placeholder="0.00"
+                      disabled
+                      className="readonly-field"
+                    />
+                  </div>
+                </div>
+
                 <div className="form-group full-width">
                   <label>Notes</label>
                   <textarea
