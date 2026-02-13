@@ -25,7 +25,7 @@ const projectSchema = new mongoose.Schema({
       supplierName: { type: String, trim: true },
       invoiceNumber: { type: String, trim: true },
       invoiceAmount: { type: Number, default: 0 },
-      creditNote: { type: Number, default: 0 },  // Changed to Number for calculations
+      creditNote: { type: Number, default: 0 },
       finalInvoiceAmount: { type: Number, default: 0 }
     },
     // Advance Payment Details
@@ -93,7 +93,7 @@ const projectSchema = new mongoose.Schema({
     }
   },
 
-  // Costing
+  // Costing - UPDATED: Removed notes field
   costing: {
     supplierInvoiceAmount: { type: Number, default: 0 },
     twlInvoiceAmount: { type: Number, default: 0 },
@@ -107,8 +107,7 @@ const projectSchema = new mongoose.Schema({
     freightCharges: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
     netProfit: { type: Number, default: 0 },
-    profitPercentage: { type: Number, default: 0 },
-    notes: { type: String, trim: true }
+    profitPercentage: { type: Number, default: 0 }
   },
 
   createdBy: {
@@ -121,7 +120,7 @@ const projectSchema = new mongoose.Schema({
 
 // Calculate payment totals before saving
 projectSchema.pre('save', function() {
-  // SUPPLIER CALCULATIONS (keep existing)
+  // SUPPLIER CALCULATIONS
   
   // 1. Final Invoice Amount = Supplier Invoice Amount - Credit Note
   const supplierInvoiceAmount = this.supplier.proformaInvoice.invoiceAmount || 0;
@@ -152,18 +151,18 @@ projectSchema.pre('save', function() {
   
   this.supplier.paymentTotal = this.supplier.summary.totalAmount;
 
-  // BUYER CALCULATIONS - NEW LOGIC
+  // BUYER CALCULATIONS
   
   // 1. Buyer Proforma: Final Invoice Amount calculation
+  // Final Invoice = TWL Invoice - Credit Note + Bank Interest + Commission + Freight
+  const buyerTwlInvoiceAmount = this.buyer.proformaInvoice.twlInvoiceAmount || 0;
   const buyerCreditNote = this.buyer.proformaInvoice.creditNote || 0;
   const buyerBankInterest = this.buyer.proformaInvoice.bankInterest || 0;
   const buyerFreightCharges = this.buyer.proformaInvoice.freightCharges || 0;
-  const buyerTwlInvoiceAmount = this.buyer.proformaInvoice.twlInvoiceAmount || 0;
   const buyerCommission = this.buyer.proformaInvoice.commission || 0;
-  
-  // Final Invoice = TWL Invoice Amount + Credit Note + Bank Interest + Freight + Commission
+
   this.buyer.proformaInvoice.finalInvoiceAmount = 
-    buyerTwlInvoiceAmount + buyerCreditNote + buyerBankInterest + 
+    buyerTwlInvoiceAmount - buyerCreditNote + buyerBankInterest + 
     buyerFreightCharges + buyerCommission;
   
   // 2. Advance Payment: Balance Amount = Final Invoice Amount - TWL Received
@@ -177,17 +176,24 @@ projectSchema.pre('save', function() {
   // Total Received = Advance TWL Received + Balance TWL Received
   this.buyer.summary.totalReceived = buyerAdvanceTwlReceived + buyerBalanceTwlReceived;
   
-  // Cancel = Credit Note - Total Received
-  this.buyer.summary.cancel = buyerCreditNote - this.buyer.summary.totalReceived;
+  // Cancel (you can set logic here, keeping as 0 for now)
+  this.buyer.summary.cancel = 0;
   
   // Balance Received = Final Invoice Amount - Total Received
   this.buyer.summary.balanceReceived = 
     this.buyer.proformaInvoice.finalInvoiceAmount - this.buyer.summary.totalReceived;
-  
+
   this.buyer.paymentTotal = this.buyer.summary.totalReceived;
 
-  // COSTING CALCULATIONS (keep existing)
+  // COSTING CALCULATIONS - UPDATED LOGIC
   
+  const costingSupplierInvoice = this.costing.supplierInvoiceAmount || 0;
+  const costingTwlInvoice = this.costing.twlInvoiceAmount || 0;
+  
+  // Profit = Supplier Invoice Amount - TWL Invoice Amount
+  this.costing.profit = costingSupplierInvoice - costingTwlInvoice;
+  
+  // Total = InGoing + OutGoing + CAL Charges + Other + Foreign Bank Charges + Loan Interest + Freight Charges
   const inGoing = this.costing.inGoing || 0;
   const outGoing = this.costing.outGoing || 0;
   const calCharges = this.costing.calCharges || 0;
@@ -198,14 +204,13 @@ projectSchema.pre('save', function() {
   
   this.costing.total = inGoing + outGoing + calCharges + other + foreignBankCharges + loanInterest + freightCharges;
   
-  if (this.buyer.paymentTotal && this.supplier.paymentTotal) {
-    this.costing.profit = this.buyer.paymentTotal - this.supplier.paymentTotal;
-    this.costing.profitPercentage = this.supplier.paymentTotal > 0 
-      ? ((this.costing.profit / this.supplier.paymentTotal) * 100).toFixed(2)
-      : 0;
-  }
-  
+  // Net Profit = Profit - Total
   this.costing.netProfit = this.costing.profit - this.costing.total;
+  
+  // Calculate profit percentage based on costing supplier invoice
+  this.costing.profitPercentage = costingSupplierInvoice > 0 
+    ? ((this.costing.profit / costingSupplierInvoice) * 100).toFixed(2)
+    : 0;
 });
 
 // Update calculations before updating
@@ -244,38 +249,53 @@ projectSchema.pre('findOneAndUpdate', function() {
   }
 
   if (update.buyer) {
-    // NEW BUYER CALCULATIONS
+    // BUYER CALCULATIONS
     if (!update.buyer.proformaInvoice) update.buyer.proformaInvoice = {};
     if (!update.buyer.advancePayment) update.buyer.advancePayment = {};
     if (!update.buyer.balancePayment) update.buyer.balancePayment = {};
     if (!update.buyer.summary) update.buyer.summary = {};
     
+    // 1. Final Invoice = TWL Invoice - Credit Note + Bank Interest + Commission + Freight
+    const buyerTwlInvoiceAmount = update.buyer?.proformaInvoice?.twlInvoiceAmount || 0;
     const buyerCreditNote = update.buyer?.proformaInvoice?.creditNote || 0;
     const buyerBankInterest = update.buyer?.proformaInvoice?.bankInterest || 0;
     const buyerFreightCharges = update.buyer?.proformaInvoice?.freightCharges || 0;
-    const buyerTwlInvoiceAmount = update.buyer?.proformaInvoice?.twlInvoiceAmount || 0;
     const buyerCommission = update.buyer?.proformaInvoice?.commission || 0;
     
     update.buyer.proformaInvoice.finalInvoiceAmount = 
-      buyerTwlInvoiceAmount + buyerCreditNote + buyerBankInterest + 
+      buyerTwlInvoiceAmount - buyerCreditNote + buyerBankInterest + 
       buyerFreightCharges + buyerCommission;
     
+    // 2. Balance Amount = Final Invoice - TWL Received
     const buyerAdvanceTwlReceived = update.buyer?.advancePayment?.twlReceived || 0;
     update.buyer.advancePayment.balanceAmount = 
       update.buyer.proformaInvoice.finalInvoiceAmount - buyerAdvanceTwlReceived;
     
+    // 3. Summary calculations
     const buyerBalanceTwlReceived = update.buyer?.balancePayment?.twlReceived || 0;
     
+    // Total Received = Advance TWL + Balance TWL
     update.buyer.summary.totalReceived = buyerAdvanceTwlReceived + buyerBalanceTwlReceived;
-    update.buyer.summary.cancel = buyerCreditNote - update.buyer.summary.totalReceived;
+    
+    // Cancel
+    update.buyer.summary.cancel = 0;
+    
+    // Balance Received = Final Invoice - Total Received
     update.buyer.summary.balanceReceived = 
       update.buyer.proformaInvoice.finalInvoiceAmount - update.buyer.summary.totalReceived;
     
     update.buyer.paymentTotal = update.buyer.summary.totalReceived;
   }
 
-  // Calculate costing
+  // COSTING CALCULATIONS - UPDATED LOGIC
   if (update.costing) {
+    const costingSupplierInvoice = update.costing?.supplierInvoiceAmount || 0;
+    const costingTwlInvoice = update.costing?.twlInvoiceAmount || 0;
+    
+    // Profit = Supplier Invoice Amount - TWL Invoice Amount
+    update.costing.profit = costingSupplierInvoice - costingTwlInvoice;
+    
+    // Total = InGoing + OutGoing + CAL Charges + Other + Foreign Bank Charges + Loan Interest + Freight Charges
     const inGoing = update.costing?.inGoing || 0;
     const outGoing = update.costing?.outGoing || 0;
     const calCharges = update.costing?.calCharges || 0;
@@ -286,21 +306,14 @@ projectSchema.pre('findOneAndUpdate', function() {
     
     update.costing.total = inGoing + outGoing + calCharges + other + foreignBankCharges + loanInterest + freightCharges;
     
-    const profit = update.costing?.profit || 0;
-    update.costing.netProfit = profit - update.costing.total;
+    // Net Profit = Profit - Total
+    update.costing.netProfit = update.costing.profit - update.costing.total;
+    
+    // Calculate profit percentage
+    update.costing.profitPercentage = costingSupplierInvoice > 0 
+      ? ((update.costing.profit / costingSupplierInvoice) * 100).toFixed(2)
+      : 0;
   }
-
-  const supplierTotal = update.supplier?.paymentTotal || 0;
-  const buyerTotal = update.buyer?.paymentTotal || 0;
-  
-  if (!update.costing) {
-    update.costing = {};
-  }
-  
-  update.costing.profit = buyerTotal - supplierTotal;
-  update.costing.profitPercentage = supplierTotal > 0 
-    ? ((update.costing.profit / supplierTotal) * 100).toFixed(2)
-    : 0;
 });
 
 module.exports = mongoose.model('Project', projectSchema);

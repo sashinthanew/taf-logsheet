@@ -63,7 +63,6 @@ const AdminDashboard = ({ user, onLogout }) => {
     buyerBalanceReceived: '',
     
     // Costing
-    costingNotes: '',
     costingSupplierInvoiceAmount: '',
     costingTwlInvoiceAmount: '',
     costingProfit: '',
@@ -79,15 +78,101 @@ const AdminDashboard = ({ user, onLogout }) => {
   });
   
   const [projects, setProjects] = useState([]);
+  const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingProject, setEditingProject] = useState(null);
   const [showForm, setShowForm] = useState(true);
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    searchTerm: '',
+    dateFrom: '',
+    dateTo: '',
+    sortBy: 'dateDesc', // dateDesc, dateAsc, profitDesc, profitAsc, nameAsc, nameDesc
+  });
+  
+  const [expandedProject, setExpandedProject] = useState(null);
 
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  // Apply filters whenever projects or filters change
+  useEffect(() => {
+    applyFilters();
+  }, [projects, filters]);
+
+  const applyFilters = () => {
+    let filtered = [...projects];
+
+    // Search filter (project name, project number, supplier name, buyer name)
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(project => 
+        project.projectName?.toLowerCase().includes(searchLower) ||
+        project.projectNo?.toLowerCase().includes(searchLower) ||
+        project.supplier?.proformaInvoice?.supplierName?.toLowerCase().includes(searchLower) ||
+        project.buyer?.proformaInvoice?.buyerName?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Date range filter
+    if (filters.dateFrom) {
+      filtered = filtered.filter(project => 
+        new Date(project.projectDate) >= new Date(filters.dateFrom)
+      );
+    }
+    if (filters.dateTo) {
+      filtered = filtered.filter(project => 
+        new Date(project.projectDate) <= new Date(filters.dateTo)
+      );
+    }
+
+    // Sorting
+    switch (filters.sortBy) {
+      case 'dateDesc':
+        filtered.sort((a, b) => new Date(b.projectDate) - new Date(a.projectDate));
+        break;
+      case 'dateAsc':
+        filtered.sort((a, b) => new Date(a.projectDate) - new Date(b.projectDate));
+        break;
+      case 'profitDesc':
+        filtered.sort((a, b) => (b.costing?.netProfit || 0) - (a.costing?.netProfit || 0));
+        break;
+      case 'profitAsc':
+        filtered.sort((a, b) => (a.costing?.netProfit || 0) - (b.costing?.netProfit || 0));
+        break;
+      case 'nameAsc':
+        filtered.sort((a, b) => a.projectName.localeCompare(b.projectName));
+        break;
+      case 'nameDesc':
+        filtered.sort((a, b) => b.projectName.localeCompare(a.projectName));
+        break;
+      default:
+        break;
+    }
+
+    setFilteredProjects(filtered);
+  };
+
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      searchTerm: '',
+      dateFrom: '',
+      dateTo: '',
+      sortBy: 'dateDesc',
+    });
+  };
+
+  const toggleProjectExpansion = (projectId) => {
+    setExpandedProject(expandedProject === projectId ? null : projectId);
+  };
 
   // Auto-calculate total payment and balance amount
   useEffect(() => {
@@ -275,8 +360,7 @@ const AdminDashboard = ({ user, onLogout }) => {
           loanInterest: parseFloat(formData.costingLoanInterest) || 0,
           freightCharges: parseFloat(formData.costingFreightCharges) || 0,
           total: parseFloat(formData.costingTotal) || 0,
-          netProfit: parseFloat(formData.costingNetProfit) || 0,
-          notes: formData.costingNotes
+          netProfit: parseFloat(formData.costingNetProfit) || 0
         }
       };
 
@@ -301,8 +385,8 @@ const AdminDashboard = ({ user, onLogout }) => {
         setSuccess(editingProject ? '✓ Project updated successfully!' : '✓ Project created successfully!');
         resetForm();
         fetchProjects();
-        setShowForm(false); // Hide form after success
-        setTimeout(() => setShowForm(true), 100); // Show form again for next entry
+        setShowForm(false);
+        setTimeout(() => setShowForm(true), 100);
       } else {
         setError(data.message || 'Failed to save project');
       }
@@ -338,21 +422,25 @@ const AdminDashboard = ({ user, onLogout }) => {
       supplierTotalAmount: '',
       supplierCancelAmount: '',
       supplierSummaryBalancePayment: '',
+      buyerName: '',
       buyerProformaInvoiceNo: '',
       buyerProformaInvoiceDate: '',
-      buyerProformaAmount: '',
-      buyerAdvanceAmount: '',
+      buyerCreditNote: '',
+      buyerBankInterest: '',
+      buyerFreightCharges: '',
+      buyerTwlInvoiceAmount: '',
+      buyerFinalInvoiceAmount: '',
+      buyerCommission: '',
+      buyerAdvanceTwlReceived: '',
+      buyerAdvanceBalanceAmount: '',
       buyerAdvanceDate: '',
       buyerAdvanceReference: '',
-      buyerBalanceAmount: '',
+      buyerBalanceTwlReceived: '',
       buyerBalanceDate: '',
       buyerBalanceReference: '',
-      buyerBalanceTwlContribution: '',   // NEW
-      buyerBalanceTotalPayment: '',      // NEW
-      buyerTotalAmount: '',              // NEW
-      buyerCancelAmount: '',             // NEW
-      buyerSummaryBalancePayment: '',    // NEW
-      costingNotes: '',
+      buyerTotalReceived: '',
+      buyerCancel: '',
+      buyerBalanceReceived: '',
       costingSupplierInvoiceAmount: '',
       costingTwlInvoiceAmount: '',
       costingProfit: '',
@@ -394,21 +482,37 @@ const AdminDashboard = ({ user, onLogout }) => {
       supplierTotalAmount: project.supplier?.summary?.totalAmount || '',
       supplierCancelAmount: project.supplier?.summary?.cancelAmount || '',
       supplierSummaryBalancePayment: project.supplier?.summary?.balancePayment || '',
+      buyerName: project.buyer?.proformaInvoice?.buyerName || '',
       buyerProformaInvoiceNo: project.buyer?.proformaInvoice?.invoiceNo || '',
       buyerProformaInvoiceDate: project.buyer?.proformaInvoice?.invoiceDate?.split('T')[0] || '',
-      buyerProformaAmount: project.buyer?.proformaInvoice?.amount || '',
-      buyerAdvanceAmount: project.buyer?.advancePayment?.amount || '',
+      buyerCreditNote: project.buyer?.proformaInvoice?.creditNote || '',
+      buyerBankInterest: project.buyer?.proformaInvoice?.bankInterest || '',
+      buyerFreightCharges: project.buyer?.proformaInvoice?.freightCharges || '',
+      buyerTwlInvoiceAmount: project.buyer?.proformaInvoice?.twlInvoiceAmount || '',
+      buyerFinalInvoiceAmount: project.buyer?.proformaInvoice?.finalInvoiceAmount || '',
+      buyerCommission: project.buyer?.proformaInvoice?.commission || '',
+      buyerAdvanceTwlReceived: project.buyer?.advancePayment?.twlReceived || '',
+      buyerAdvanceBalanceAmount: project.buyer?.advancePayment?.balanceAmount || '',
       buyerAdvanceDate: project.buyer?.advancePayment?.date?.split('T')[0] || '',
       buyerAdvanceReference: project.buyer?.advancePayment?.reference || '',
-      buyerBalanceAmount: project.buyer?.balancePayment?.amount || '',
+      buyerBalanceTwlReceived: project.buyer?.balancePayment?.twlReceived || '',
       buyerBalanceDate: project.buyer?.balancePayment?.date?.split('T')[0] || '',
       buyerBalanceReference: project.buyer?.balancePayment?.reference || '',
-      buyerBalanceTwlContribution: project.buyer?.balancePayment?.twlContribution || '',   // NEW
-      buyerBalanceTotalPayment: project.buyer?.balancePayment?.totalPayment || '',        // NEW
-      buyerTotalAmount: project.buyer?.summary?.totalAmount || '',                        // NEW
-      buyerCancelAmount: project.buyer?.summary?.cancelAmount || '',                      // NEW
-      buyerSummaryBalancePayment: project.buyer?.summary?.balancePayment || '',           // NEW
-      costingNotes: project.costing?.notes || ''
+      buyerTotalReceived: project.buyer?.summary?.totalReceived || '',
+      buyerCancel: project.buyer?.summary?.cancel || '',
+      buyerBalanceReceived: project.buyer?.summary?.balanceReceived || '',
+      costingSupplierInvoiceAmount: project.costing?.supplierInvoiceAmount || '',
+      costingTwlInvoiceAmount: project.costing?.twlInvoiceAmount || '',
+      costingProfit: project.costing?.profit || '',
+      costingInGoing: project.costing?.inGoing || '',
+      costingOutGoing: project.costing?.outGoing || '',
+      costingCalCharges: project.costing?.calCharges || '',
+      costingOther: project.costing?.other || '',
+      costingForeignBankCharges: project.costing?.foreignBankCharges || '',
+      costingLoanInterest: project.costing?.loanInterest || '',
+      costingFreightCharges: project.costing?.freightCharges || '',
+      costingTotal: project.costing?.total || '',
+      costingNetProfit: project.costing?.netProfit || '',
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -439,6 +543,132 @@ const AdminDashboard = ({ user, onLogout }) => {
     } catch (error) {
       console.error('Error deleting project:', error);
       setError('Server error. Please try again.');
+    }
+  };
+
+  // Auto-calculate buyer final invoice amount
+  useEffect(() => {
+    const twlInvoice = parseFloat(formData.buyerTwlInvoiceAmount) || 0;
+    const creditNote = parseFloat(formData.buyerCreditNote) || 0;
+    const bankInterest = parseFloat(formData.buyerBankInterest) || 0;
+    const freight = parseFloat(formData.buyerFreightCharges) || 0;
+    const commission = parseFloat(formData.buyerCommission) || 0;
+    
+    const finalAmount = twlInvoice - creditNote + bankInterest + commission + freight;
+    
+    setFormData(prev => ({
+      ...prev,
+      buyerFinalInvoiceAmount: finalAmount.toFixed(2)
+    }));
+  }, [
+    formData.buyerTwlInvoiceAmount,
+    formData.buyerCreditNote,
+    formData.buyerBankInterest,
+    formData.buyerFreightCharges,
+    formData.buyerCommission
+  ]);
+
+  // Auto-calculate buyer advance balance amount
+  useEffect(() => {
+    const finalInvoice = parseFloat(formData.buyerFinalInvoiceAmount) || 0;
+    const twlReceived = parseFloat(formData.buyerAdvanceTwlReceived) || 0;
+    
+    const balanceAmount = finalInvoice - twlReceived;
+    
+    setFormData(prev => ({
+      ...prev,
+      buyerAdvanceBalanceAmount: balanceAmount.toFixed(2)
+    }));
+  }, [formData.buyerFinalInvoiceAmount, formData.buyerAdvanceTwlReceived]);
+
+  // Auto-calculate buyer summary
+  useEffect(() => {
+    const advanceTwl = parseFloat(formData.buyerAdvanceTwlReceived) || 0;
+    const balanceTwl = parseFloat(formData.buyerBalanceTwlReceived) || 0;
+    const finalInvoice = parseFloat(formData.buyerFinalInvoiceAmount) || 0;
+    
+    const totalReceived = advanceTwl + balanceTwl;
+    const cancel = 0;
+    const balanceReceived = finalInvoice - totalReceived;
+    
+    setFormData(prev => ({
+      ...prev,
+      buyerTotalReceived: totalReceived.toFixed(2),
+      buyerCancel: cancel.toFixed(2),
+      buyerBalanceReceived: balanceReceived.toFixed(2)
+    }));
+  }, [
+    formData.buyerAdvanceTwlReceived,
+    formData.buyerBalanceTwlReceived,
+    formData.buyerFinalInvoiceAmount
+  ]);
+
+  // Auto-calculate costing profit, total and net profit
+  useEffect(() => {
+    const supplierInvoice = parseFloat(formData.costingSupplierInvoiceAmount) || 0;
+    const twlInvoice = parseFloat(formData.costingTwlInvoiceAmount) || 0;
+    const inGoing = parseFloat(formData.costingInGoing) || 0;
+    const outGoing = parseFloat(formData.costingOutGoing) || 0;
+    const calCharges = parseFloat(formData.costingCalCharges) || 0;
+    const other = parseFloat(formData.costingOther) || 0;
+    const foreignBank = parseFloat(formData.costingForeignBankCharges) || 0;
+    const loanInterest = parseFloat(formData.costingLoanInterest) || 0;
+    const freight = parseFloat(formData.costingFreightCharges) || 0;
+
+    const profit = supplierInvoice - twlInvoice;
+    const total = inGoing + outGoing + calCharges + other + foreignBank + loanInterest + freight;
+    const netProfit = profit - total;
+
+    setFormData(prev => ({
+      ...prev,
+      costingProfit: profit.toFixed(2),
+      costingTotal: total.toFixed(2),
+      costingNetProfit: netProfit.toFixed(2)
+    }));
+  }, [
+    formData.costingSupplierInvoiceAmount,
+    formData.costingTwlInvoiceAmount,
+    formData.costingInGoing,
+    formData.costingOutGoing,
+    formData.costingCalCharges,
+    formData.costingOther,
+    formData.costingForeignBankCharges,
+    formData.costingLoanInterest,
+    formData.costingFreightCharges
+  ]);
+
+  const handleExportToExcel = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch('http://localhost:5000/api/projects/export/excel', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `TWL_Projects_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      setSuccess('✓ Excel report downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      setError('Failed to export to Excel. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1135,15 +1365,15 @@ const AdminDashboard = ({ user, onLogout }) => {
                   </div>
 
                   <div className="form-group">
-                    <label>Profit ($)</label>
+                    <label>Profit ($) <span className="auto-calc">Auto-calculated</span></label>
                     <input
                       type="number"
                       name="costingProfit"
                       value={formData.costingProfit}
-                      onChange={handleChange}
+                      readOnly
                       placeholder="0.00"
-                      step="0.01"
-                      disabled={loading}
+                      disabled
+                      className="readonly-field"
                     />
                   </div>
 
@@ -1271,18 +1501,6 @@ const AdminDashboard = ({ user, onLogout }) => {
                     />
                   </div>
                 </div>
-
-                <div className="form-group full-width">
-                  <label>Notes</label>
-                  <textarea
-                    name="costingNotes"
-                    value={formData.costingNotes}
-                    onChange={handleChange}
-                    placeholder="Add any costing notes or remarks..."
-                    rows="4"
-                    disabled={loading}
-                  />
-                </div>
               </div>
 
               {/* Submit Button */}
@@ -1324,24 +1542,112 @@ const AdminDashboard = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* Projects List */}
+        {/* Projects List with Filters */}
         <div className="projects-section">
-          <h2 className="section-title">📊 All Projects ({projects.length})</h2>
+          <div className="section-header">
+            <h2 className="section-title">📊 All Projects ({filteredProjects.length})</h2>
+            <button 
+              onClick={handleExportToExcel} 
+              className="export-excel-button"
+              disabled={loading || projects.length === 0}
+              title="Export all projects to Excel"
+            >
+              {loading ? (
+                <>
+                  <span className="spinner"></span>
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  📥 Export to Excel
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Filters Section */}
+          <div className="filters-section">
+            <div className="filters-grid">
+              <div className="filter-group">
+                <label>🔍 Search</label>
+                <input
+                  type="text"
+                  name="searchTerm"
+                  value={filters.searchTerm}
+                  onChange={handleFilterChange}
+                  placeholder="Search by project name, number, supplier, buyer..."
+                  className="filter-input"
+                />
+              </div>
+
+              <div className="filter-group">
+                <label>📅 Date From</label>
+                <input
+                  type="date"
+                  name="dateFrom"
+                  value={filters.dateFrom}
+                  onChange={handleFilterChange}
+                  className="filter-input"
+                />
+              </div>
+
+              <div className="filter-group">
+                <label>📅 Date To</label>
+                <input
+                  type="date"
+                  name="dateTo"
+                  value={filters.dateTo}
+                  onChange={handleFilterChange}
+                  className="filter-input"
+                />
+              </div>
+
+              <div className="filter-group">
+                <label>📊 Sort By</label>
+                <select
+                  name="sortBy"
+                  value={filters.sortBy}
+                  onChange={handleFilterChange}
+                  className="filter-select"
+                >
+                  <option value="dateDesc">Date (Newest First)</option>
+                  <option value="dateAsc">Date (Oldest First)</option>
+                  <option value="profitDesc">Net Profit (High to Low)</option>
+                  <option value="profitAsc">Net Profit (Low to High)</option>
+                  <option value="nameAsc">Name (A to Z)</option>
+                  <option value="nameDesc">Name (Z to A)</option>
+                </select>
+              </div>
+
+              <div className="filter-group filter-actions">
+                <button onClick={resetFilters} className="reset-filters-button">
+                  ↺ Reset Filters
+                </button>
+              </div>
+            </div>
+          </div>
           
-          {projects.length === 0 ? (
+          {filteredProjects.length === 0 ? (
             <div className="no-projects">
-              <p>📭 No projects found. Create your first project above.</p>
+              <p>📭 {projects.length === 0 ? 'No projects found. Create your first project above.' : 'No projects match your filters.'}</p>
             </div>
           ) : (
             <div className="projects-grid">
-              {projects.map((project) => (
-                <div key={project._id} className="project-card">
+              {filteredProjects.map((project) => (
+                <div key={project._id} className={`project-card ${expandedProject === project._id ? 'expanded' : ''}`}>
                   <div className="project-card-header">
                     <div>
                       <h3>{project.projectName}</h3>
                       <span className="project-no">{project.projectNo}</span>
                     </div>
                     <div className="card-actions">
+                      <button 
+                        onClick={() => toggleProjectExpansion(project._id)}
+                        className="expand-button"
+                        title={expandedProject === project._id ? "Show Less" : "Show Details"}
+                      >
+                        {expandedProject === project._id ? '▲ Less' : '▼ Details'}
+                      </button>
                       <button 
                         onClick={() => handleEdit(project)}
                         className="edit-button"
@@ -1363,64 +1669,288 @@ const AdminDashboard = ({ user, onLogout }) => {
                     📅 {new Date(project.projectDate).toLocaleDateString()}
                   </div>
 
-                  <div className="project-details">
-                    {/* Supplier Summary */}
-                    <div className="detail-section">
-                      <h4>🏭 Supplier: {project.supplier?.proformaInvoice?.supplierName || 'N/A'}</h4>
-                      <div className="detail-row">
-                        <span>Final Invoice:</span>
-                        <span className="value">${project.supplier?.proformaInvoice?.finalInvoiceAmount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span>Loan Amount:</span>
-                        <span className="value">${project.supplier?.advancePayment?.loanAmount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span>TWL Contribution:</span>
-                        <span className="value">${project.supplier?.advancePayment?.twlContribution?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span>Balance Payment:</span>
-                        <span className="value">${project.supplier?.balancePayment?.amount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row total">
-                        <span>Total Paid:</span>
-                        <span className="value">${project.supplier?.paymentTotal?.toFixed(2) || '0.00'}</span>
-                      </div>
+                  {/* Quick Summary */}
+                  <div className="project-quick-summary">
+                    <div className="summary-item">
+                      <span className="summary-label">Supplier:</span>
+                      <span className="summary-value">{project.supplier?.proformaInvoice?.supplierName || 'N/A'}</span>
                     </div>
-
-                    {/* Buyer Summary */}
-                    <div className="detail-section">
-                      <h4>🛒 Buyer</h4>
-                      <div className="detail-row">
-                        <span>Proforma:</span>
-                        <span className="value">${project.buyer?.proformaInvoice?.amount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span>Advance:</span>
-                        <span className="value">${project.buyer?.advancePayment?.amount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span>Balance:</span>
-                        <span className="value">${project.buyer?.balancePayment?.amount?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="detail-row total">
-                        <span>Total:</span>
-                        <span className="value">${project.buyer?.paymentTotal?.toFixed(2) || '0.00'}</span>
-                      </div>
+                    <div className="summary-item">
+                      <span className="summary-label">Buyer:</span>
+                      <span className="summary-value">{project.buyer?.proformaInvoice?.buyerName || 'N/A'}</span>
                     </div>
-
-                    {/* Profit */}
-                    <div className="detail-section profit-section">
-                      <h4>💰 Profit</h4>
-                      <div className="profit-amount">
-                        ${project.costing?.profit?.toFixed(2) || '0.00'}
-                      </div>
-                      <div className="profit-percentage">
-                        {project.costing?.profitPercentage || '0'}%
-                      </div>
+                    <div className="summary-item highlight">
+                      <span className="summary-label">Net Profit:</span>
+                      <span className={`summary-value ${(project.costing?.netProfit || 0) >= 0 ? 'profit-positive' : 'profit-negative'}`}>
+                        ${(project.costing?.netProfit || 0).toFixed(2)}
+                      </span>
                     </div>
                   </div>
+
+                  {/* Expanded Details */}
+                  {expandedProject === project._id && (
+                    <div className="project-details-expanded">
+                      
+                      {/* Supplier Details */}
+                      <div className="detail-section">
+                        <h4 className="detail-section-title">🏭 Supplier Details</h4>
+                        
+                        <div className="detail-subsection">
+                          <h5>Proforma Invoice</h5>
+                          <div className="detail-row">
+                            <span>Invoice Number:</span>
+                            <span className="value">{project.supplier?.proformaInvoice?.invoiceNumber || 'N/A'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Invoice Amount:</span>
+                            <span className="value">${project.supplier?.proformaInvoice?.invoiceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Credit Note:</span>
+                            <span className="value">${project.supplier?.proformaInvoice?.creditNote?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row highlight">
+                            <span>Final Invoice Amount:</span>
+                            <span className="value">${project.supplier?.proformaInvoice?.finalInvoiceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+
+                        <div className="detail-subsection">
+                          <h5>Advance Payment</h5>
+                          <div className="detail-row">
+                            <span>Loan Amount:</span>
+                            <span className="value">${project.supplier?.advancePayment?.loanAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>TWL Contribution:</span>
+                            <span className="value">${project.supplier?.advancePayment?.twlContribution?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Total Payment:</span>
+                            <span className="value">${project.supplier?.advancePayment?.totalPayment?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Balance Amount:</span>
+                            <span className="value">${project.supplier?.advancePayment?.balanceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          {project.supplier?.advancePayment?.paymentDate && (
+                            <div className="detail-row">
+                              <span>Payment Date:</span>
+                              <span className="value">{new Date(project.supplier.advancePayment.paymentDate).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                          {project.supplier?.advancePayment?.referenceNumber && (
+                            <div className="detail-row">
+                              <span>Reference:</span>
+                              <span className="value">{project.supplier.advancePayment.referenceNumber}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="detail-subsection">
+                          <h5>Balance Payment</h5>
+                          <div className="detail-row">
+                            <span>Amount:</span>
+                            <span className="value">${project.supplier?.balancePayment?.amount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>TWL Contribution:</span>
+                            <span className="value">${project.supplier?.balancePayment?.twlContribution?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Total Payment:</span>
+                            <span className="value">${project.supplier?.balancePayment?.totalPayment?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          {project.supplier?.balancePayment?.date && (
+                            <div className="detail-row">
+                              <span>Payment Date:</span>
+                              <span className="value">{new Date(project.supplier.balancePayment.date).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="detail-subsection summary-subsection">
+                          <h5>Summary</h5>
+                          <div className="detail-row">
+                            <span>Total Amount:</span>
+                            <span className="value">${project.supplier?.summary?.totalAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Cancel Amount:</span>
+                            <span className="value">${project.supplier?.summary?.cancelAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row highlight">
+                            <span>Balance Payment:</span>
+                            <span className="value">${project.supplier?.summary?.balancePayment?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Buyer Details */}
+                      <div className="detail-section">
+                        <h4 className="detail-section-title">🛒 Buyer Details</h4>
+                        
+                        <div className="detail-subsection">
+                          <h5>Proforma Invoice</h5>
+                          <div className="detail-row">
+                            <span>Invoice No:</span>
+                            <span className="value">{project.buyer?.proformaInvoice?.invoiceNo || 'N/A'}</span>
+                          </div>
+                          {project.buyer?.proformaInvoice?.invoiceDate && (
+                            <div className="detail-row">
+                              <span>Invoice Date:</span>
+                              <span className="value">{new Date(project.buyer.proformaInvoice.invoiceDate).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                          <div className="detail-row">
+                            <span>TWL Invoice Amount:</span>
+                            <span className="value">${project.buyer?.proformaInvoice?.twlInvoiceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Credit Note:</span>
+                            <span className="value">${project.buyer?.proformaInvoice?.creditNote?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Bank Interest:</span>
+                            <span className="value">${project.buyer?.proformaInvoice?.bankInterest?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Freight Charges:</span>
+                            <span className="value">${project.buyer?.proformaInvoice?.freightCharges?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Commission:</span>
+                            <span className="value">${project.buyer?.proformaInvoice?.commission?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row highlight">
+                            <span>Final Invoice Amount:</span>
+                            <span className="value">${project.buyer?.proformaInvoice?.finalInvoiceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+
+                        <div className="detail-subsection">
+                          <h5>Advance Payment</h5>
+                          <div className="detail-row">
+                            <span>TWL Received:</span>
+                            <span className="value">${project.buyer?.advancePayment?.twlReceived?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Balance Amount:</span>
+                            <span className="value">${project.buyer?.advancePayment?.balanceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          {project.buyer?.advancePayment?.date && (
+                            <div className="detail-row">
+                              <span>Payment Date:</span>
+                              <span className="value">{new Date(project.buyer.advancePayment.date).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                          {project.buyer?.advancePayment?.reference && (
+                            <div className="detail-row">
+                              <span>Reference:</span>
+                              <span className="value">{project.buyer.advancePayment.reference}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="detail-subsection">
+                          <h5>Balance Payment</h5>
+                          <div className="detail-row">
+                            <span>TWL Received:</span>
+                            <span className="value">${project.buyer?.balancePayment?.twlReceived?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          {project.buyer?.balancePayment?.date && (
+                            <div className="detail-row">
+                              <span>Payment Date:</span>
+                              <span className="value">{new Date(project.buyer.balancePayment.date).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="detail-subsection summary-subsection">
+                          <h5>Summary</h5>
+                          <div className="detail-row">
+                            <span>Total Received:</span>
+                            <span className="value">${project.buyer?.summary?.totalReceived?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Cancel:</span>
+                            <span className="value">${project.buyer?.summary?.cancel?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row highlight">
+                            <span>Balance Received:</span>
+                            <span className="value">${project.buyer?.summary?.balanceReceived?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Costing Details */}
+                      <div className="detail-section">
+                        <h4 className="detail-section-title">💰 Costing Details</h4>
+                        
+                        <div className="detail-subsection">
+                          <h5>Revenue</h5>
+                          <div className="detail-row">
+                            <span>Supplier Invoice Amount:</span>
+                            <span className="value">${project.costing?.supplierInvoiceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>TWL Invoice Amount:</span>
+                            <span className="value">${project.costing?.twlInvoiceAmount?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row highlight">
+                            <span>Profit:</span>
+                            <span className="value">${project.costing?.profit?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+
+                        <div className="detail-subsection">
+                          <h5>Expenses</h5>
+                          <div className="detail-row">
+                            <span>In Going:</span>
+                            <span className="value">${project.costing?.inGoing?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Out Going:</span>
+                            <span className="value">${project.costing?.outGoing?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>CAL Charges:</span>
+                            <span className="value">${project.costing?.calCharges?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Other:</span>
+                            <span className="value">${project.costing?.other?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Foreign Bank Charges:</span>
+                            <span className="value">${project.costing?.foreignBankCharges?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Loan Interest:</span>
+                            <span className="value">${project.costing?.loanInterest?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Freight Charges:</span>
+                            <span className="value">${project.costing?.freightCharges?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="detail-row highlight">
+                            <span>Total Expenses:</span>
+                            <span className="value">${project.costing?.total?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+
+                        <div className="detail-subsection summary-subsection net-profit-section">
+                          <h5>Final Result</h5>
+                          <div className="detail-row net-profit-row">
+                            <span>Net Profit:</span>
+                            <span className={`value net-profit-value ${(project.costing?.netProfit || 0) >= 0 ? 'profit-positive' : 'profit-negative'}`}>
+                              ${project.costing?.netProfit?.toFixed(2) || '0.00'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1432,3 +1962,38 @@ const AdminDashboard = ({ user, onLogout }) => {
 };
 
 export default AdminDashboard;
+
+const handleExportToExcel = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    const response = await fetch('http://localhost:5000/api/projects/export/excel', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to export');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `TWL_Projects_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    setSuccess('✓ Excel report downloaded successfully!');
+  } catch (error) {
+    console.error('Error exporting to Excel:', error);
+    setError('Failed to export to Excel. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
