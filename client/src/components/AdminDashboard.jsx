@@ -35,27 +35,32 @@ const AdminDashboard = ({ user, onLogout }) => {
     supplierCancelAmount: '',
     supplierSummaryBalancePayment: '',
     
-    // Buyer - Proforma Invoice
+    // Buyer - Proforma Invoice (NEW STRUCTURE)
+    buyerName: '',
     buyerProformaInvoiceNo: '',
     buyerProformaInvoiceDate: '',
-    buyerProformaAmount: '',
+    buyerCreditNote: '',
+    buyerBankInterest: '',
+    buyerFreightCharges: '',
+    buyerTwlInvoiceAmount: '',
+    buyerFinalInvoiceAmount: '',
+    buyerCommission: '',
     
-    // Buyer - Advance Payment
-    buyerAdvanceAmount: '',
+    // Buyer - Advance Payment (NEW STRUCTURE)
+    buyerAdvanceTwlReceived: '',
+    buyerAdvanceBalanceAmount: '',
     buyerAdvanceDate: '',
     buyerAdvanceReference: '',
     
-    // Buyer - Balance Payment
-    buyerBalanceAmount: '',
+    // Buyer - Balance Payment (NEW STRUCTURE)
+    buyerBalanceTwlReceived: '',
     buyerBalanceDate: '',
     buyerBalanceReference: '',
-    buyerBalanceTwlContribution: '',  // NEW
-    buyerBalanceTotalPayment: '',     // NEW
     
-    // Buyer - Summary (NEW SECTION)
-    buyerTotalAmount: '',             // NEW
-    buyerCancelAmount: '',            // NEW
-    buyerSummaryBalancePayment: '',   // NEW
+    // Buyer - Summary (NEW STRUCTURE)
+    buyerTotalReceived: '',
+    buyerCancel: '',
+    buyerBalanceReceived: '',
     
     // Costing
     costingNotes: '',
@@ -231,26 +236,31 @@ const AdminDashboard = ({ user, onLogout }) => {
         },
         buyer: {
           proformaInvoice: {
+            buyerName: formData.buyerName,
             invoiceNo: formData.buyerProformaInvoiceNo,
             invoiceDate: formData.buyerProformaInvoiceDate,
-            amount: parseFloat(formData.buyerProformaAmount) || 0
+            creditNote: parseFloat(formData.buyerCreditNote) || 0,
+            bankInterest: parseFloat(formData.buyerBankInterest) || 0,
+            freightCharges: parseFloat(formData.buyerFreightCharges) || 0,
+            twlInvoiceAmount: parseFloat(formData.buyerTwlInvoiceAmount) || 0,
+            finalInvoiceAmount: parseFloat(formData.buyerFinalInvoiceAmount) || 0,
+            commission: parseFloat(formData.buyerCommission) || 0
           },
           advancePayment: {
-            amount: parseFloat(formData.buyerAdvanceAmount) || 0,
+            twlReceived: parseFloat(formData.buyerAdvanceTwlReceived) || 0,
+            balanceAmount: parseFloat(formData.buyerAdvanceBalanceAmount) || 0,
             date: formData.buyerAdvanceDate,
             reference: formData.buyerAdvanceReference
           },
           balancePayment: {
-            amount: parseFloat(formData.buyerBalanceAmount) || 0,
+            twlReceived: parseFloat(formData.buyerBalanceTwlReceived) || 0,
             date: formData.buyerBalanceDate,
-            reference: formData.buyerBalanceReference,
-            twlContribution: parseFloat(formData.buyerBalanceTwlContribution) || 0,  // NEW
-            totalPayment: parseFloat(formData.buyerBalanceTotalPayment) || 0         // NEW
+            reference: formData.buyerBalanceReference
           },
-          summary: {  // NEW SECTION
-            totalAmount: parseFloat(formData.buyerTotalAmount) || 0,
-            cancelAmount: parseFloat(formData.buyerCancelAmount) || 0,
-            balancePayment: parseFloat(formData.buyerSummaryBalancePayment) || 0
+          summary: {
+            totalReceived: parseFloat(formData.buyerTotalReceived) || 0,
+            cancel: parseFloat(formData.buyerCancel) || 0,
+            balanceReceived: parseFloat(formData.buyerBalanceReceived) || 0
           }
         },
         costing: {
@@ -827,6 +837,18 @@ const AdminDashboard = ({ user, onLogout }) => {
                   <h4 className="subsection-title">Proforma Invoice Details</h4>
                   <div className="form-grid">
                     <div className="form-group">
+                      <label>Buyer Name</label>
+                      <input
+                        type="text"
+                        name="buyerName"
+                        value={formData.buyerName}
+                        onChange={handleChange}
+                        placeholder="Enter buyer name"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
                       <label>Invoice No</label>
                       <input
                         type="text"
@@ -850,11 +872,80 @@ const AdminDashboard = ({ user, onLogout }) => {
                     </div>
 
                     <div className="form-group">
-                      <label>Amount ($)</label>
+                      <label>Credit Note ($)</label>
                       <input
                         type="number"
-                        name="buyerProformaAmount"
-                        value={formData.buyerProformaAmount}
+                        name="buyerCreditNote"
+                        value={formData.buyerCreditNote}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Bank Interest ($)</label>
+                      <input
+                        type="number"
+                        name="buyerBankInterest"
+                        value={formData.buyerBankInterest}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Freight Charges ($)</label>
+                      <input
+                        type="number"
+                        name="buyerFreightCharges"
+                        value={formData.buyerFreightCharges}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>TWL Invoice Amount ($)</label>
+                      <input
+                        type="number"
+                        name="buyerTwlInvoiceAmount"
+                        value={formData.buyerTwlInvoiceAmount}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Final Invoice Amount ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="buyerFinalInvoiceAmount"
+                        value={formData.buyerFinalInvoiceAmount}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Commission ($)</label>
+                      <input
+                        type="number"
+                        name="buyerCommission"
+                        value={formData.buyerCommission}
                         onChange={handleChange}
                         placeholder="0.00"
                         step="0.01"
@@ -870,16 +961,29 @@ const AdminDashboard = ({ user, onLogout }) => {
                   <h4 className="subsection-title">Advance Payment Details</h4>
                   <div className="form-grid">
                     <div className="form-group">
-                      <label>Amount ($)</label>
+                      <label>TWL Received ($)</label>
                       <input
                         type="number"
-                        name="buyerAdvanceAmount"
-                        value={formData.buyerAdvanceAmount}
+                        name="buyerAdvanceTwlReceived"
+                        value={formData.buyerAdvanceTwlReceived}
                         onChange={handleChange}
                         placeholder="0.00"
                         step="0.01"
                         min="0"
                         disabled={loading}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Balance Amount ($) <span className="auto-calc">Auto-calculated</span></label>
+                      <input
+                        type="number"
+                        name="buyerAdvanceBalanceAmount"
+                        value={formData.buyerAdvanceBalanceAmount}
+                        readOnly
+                        placeholder="0.00"
+                        disabled
+                        className="readonly-field"
                       />
                     </div>
 
@@ -913,11 +1017,11 @@ const AdminDashboard = ({ user, onLogout }) => {
                   <h4 className="subsection-title">Balance Payment</h4>
                   <div className="form-grid">
                     <div className="form-group">
-                      <label>Amount ($)</label>
+                      <label>TWL Received ($)</label>
                       <input
                         type="number"
-                        name="buyerBalanceAmount"
-                        value={formData.buyerBalanceAmount}
+                        name="buyerBalanceTwlReceived"
+                        value={formData.buyerBalanceTwlReceived}
                         onChange={handleChange}
                         placeholder="0.00"
                         step="0.01"
@@ -948,79 +1052,49 @@ const AdminDashboard = ({ user, onLogout }) => {
                         disabled={loading}
                       />
                     </div>
+                  </div>
+                </div>
 
+                {/* Buyer Summary Section */}
+                <div className="subsection">
+                  <h4 className="subsection-title">Buyer Summary</h4>
+                  <div className="form-grid">
                     <div className="form-group">
-                      <label>TWL Contribution ($)</label>
+                      <label>Total Received ($) <span className="auto-calc">Auto-calculated</span></label>
                       <input
                         type="number"
-                        name="buyerBalanceTwlContribution"
-                        value={formData.buyerBalanceTwlContribution}
-                        onChange={handleChange}
-                        placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Total Payment ($) <span className="auto-calc">Auto-calculated</span></label>
-                      <input
-                        type="number"
-                        name="buyerBalanceTotalPayment"
-                        value={formData.buyerBalanceTotalPayment}
+                        name="buyerTotalReceived"
+                        value={formData.buyerTotalReceived}
                         readOnly
                         placeholder="0.00"
                         disabled
                         className="readonly-field"
                       />
                     </div>
-                  </div>
-                </div>
 
-                {/* NEW: Buyer Summary Section */}
-                <div className="subsection">
-                  <h4 className="subsection-title">Buyer Summary</h4>
-                  <div className="form-grid">
                     <div className="form-group">
-                      <label>Total Amount ($)</label>
+                      <label>Cancel ($) <span className="auto-calc">Auto-calculated</span></label>
                       <input
                         type="number"
-                        name="buyerTotalAmount"
-                        value={formData.buyerTotalAmount}
-                        onChange={handleChange}
+                        name="buyerCancel"
+                        value={formData.buyerCancel}
+                        readOnly
                         placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                        disabled={loading}
+                        disabled
+                        className="readonly-field"
                       />
                     </div>
 
                     <div className="form-group">
-                      <label>Cancel Amount ($)</label>
+                      <label>Balance Received ($) <span className="auto-calc">Auto-calculated</span></label>
                       <input
                         type="number"
-                        name="buyerCancelAmount"
-                        value={formData.buyerCancelAmount}
-                        onChange={handleChange}
+                        name="buyerBalanceReceived"
+                        value={formData.buyerBalanceReceived}
+                        readOnly
                         placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Balance Payment ($)</label>
-                      <input
-                        type="number"
-                        name="buyerSummaryBalancePayment"
-                        value={formData.buyerSummaryBalancePayment}
-                        onChange={handleChange}
-                        placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                        disabled={loading}
+                        disabled
+                        className="readonly-field"
                       />
                     </div>
                   </div>

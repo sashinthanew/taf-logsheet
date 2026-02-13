@@ -60,27 +60,32 @@ const projectSchema = new mongoose.Schema({
   // Buyer Details
   buyer: {
     proformaInvoice: {
+      buyerName: { type: String, trim: true },
       invoiceNo: { type: String, trim: true },
       invoiceDate: { type: Date },
-      amount: { type: Number, default: 0 }
+      creditNote: { type: Number, default: 0 },
+      bankInterest: { type: Number, default: 0 },
+      freightCharges: { type: Number, default: 0 },
+      twlInvoiceAmount: { type: Number, default: 0 },
+      finalInvoiceAmount: { type: Number, default: 0 },
+      commission: { type: Number, default: 0 }
     },
     advancePayment: {
-      amount: { type: Number, default: 0 },
+      twlReceived: { type: Number, default: 0 },
+      balanceAmount: { type: Number, default: 0 },
       date: { type: Date },
       reference: { type: String, trim: true }
     },
     balancePayment: {
-      amount: { type: Number, default: 0 },
+      twlReceived: { type: Number, default: 0 },
       date: { type: Date },
-      reference: { type: String, trim: true },
-      twlContribution: { type: Number, default: 0 },
-      totalPayment: { type: Number, default: 0 }
+      reference: { type: String, trim: true }
     },
     // Buyer Summary
     summary: {
-      totalAmount: { type: Number, default: 0 },
-      cancelAmount: { type: Number, default: 0 },
-      balancePayment: { type: Number, default: 0 }
+      totalReceived: { type: Number, default: 0 },
+      cancel: { type: Number, default: 0 },
+      balanceReceived: { type: Number, default: 0 }
     },
     paymentTotal: {
       type: Number,
@@ -116,7 +121,7 @@ const projectSchema = new mongoose.Schema({
 
 // Calculate payment totals before saving
 projectSchema.pre('save', function() {
-  // SUPPLIER CALCULATIONS
+  // SUPPLIER CALCULATIONS (keep existing)
   
   // 1. Final Invoice Amount = Supplier Invoice Amount - Credit Note
   const supplierInvoiceAmount = this.supplier.proformaInvoice.invoiceAmount || 0;
@@ -138,35 +143,51 @@ projectSchema.pre('save', function() {
   this.supplier.balancePayment.totalPayment = supplierBalanceAmount + supplierBalanceTwl;
   
   // 5. Supplier Summary Calculations
-  // Total Amount = Total Payment (Advance) + Total Payment (Balance)
   this.supplier.summary.totalAmount = 
     this.supplier.advancePayment.totalPayment + 
     this.supplier.balancePayment.totalPayment;
   
-  // Cancel Amount = Credit Note - Total Amount
   this.supplier.summary.cancelAmount = creditNote - this.supplier.summary.totalAmount;
-  
-  // Balance Payment = Final Invoice Amount - Total Amount
   this.supplier.summary.balancePayment = finalInvoice - this.supplier.summary.totalAmount;
   
-  // Total payment for profit calculation
   this.supplier.paymentTotal = this.supplier.summary.totalAmount;
 
-  // BUYER CALCULATIONS
+  // BUYER CALCULATIONS - NEW LOGIC
   
-  // Buyer balance payment total
-  const buyerBalanceAmount = this.buyer.balancePayment.amount || 0;
-  const buyerBalanceTwl = this.buyer.balancePayment.twlContribution || 0;
-  this.buyer.balancePayment.totalPayment = buyerBalanceAmount + buyerBalanceTwl;
+  // 1. Buyer Proforma: Final Invoice Amount calculation
+  const buyerCreditNote = this.buyer.proformaInvoice.creditNote || 0;
+  const buyerBankInterest = this.buyer.proformaInvoice.bankInterest || 0;
+  const buyerFreightCharges = this.buyer.proformaInvoice.freightCharges || 0;
+  const buyerTwlInvoiceAmount = this.buyer.proformaInvoice.twlInvoiceAmount || 0;
+  const buyerCommission = this.buyer.proformaInvoice.commission || 0;
   
-  // Buyer payment total
-  this.buyer.paymentTotal = 
-    (this.buyer.advancePayment.amount || 0) + 
-    this.buyer.balancePayment.totalPayment;
+  // Final Invoice = TWL Invoice Amount + Credit Note + Bank Interest + Freight + Commission
+  this.buyer.proformaInvoice.finalInvoiceAmount = 
+    buyerTwlInvoiceAmount + buyerCreditNote + buyerBankInterest + 
+    buyerFreightCharges + buyerCommission;
+  
+  // 2. Advance Payment: Balance Amount = Final Invoice Amount - TWL Received
+  const buyerAdvanceTwlReceived = this.buyer.advancePayment.twlReceived || 0;
+  this.buyer.advancePayment.balanceAmount = 
+    this.buyer.proformaInvoice.finalInvoiceAmount - buyerAdvanceTwlReceived;
+  
+  // 3. Buyer Summary Calculations
+  const buyerBalanceTwlReceived = this.buyer.balancePayment.twlReceived || 0;
+  
+  // Total Received = Advance TWL Received + Balance TWL Received
+  this.buyer.summary.totalReceived = buyerAdvanceTwlReceived + buyerBalanceTwlReceived;
+  
+  // Cancel = Credit Note - Total Received
+  this.buyer.summary.cancel = buyerCreditNote - this.buyer.summary.totalReceived;
+  
+  // Balance Received = Final Invoice Amount - Total Received
+  this.buyer.summary.balanceReceived = 
+    this.buyer.proformaInvoice.finalInvoiceAmount - this.buyer.summary.totalReceived;
+  
+  this.buyer.paymentTotal = this.buyer.summary.totalReceived;
 
-  // COSTING CALCULATIONS
+  // COSTING CALCULATIONS (keep existing)
   
-  // Calculate costing total
   const inGoing = this.costing.inGoing || 0;
   const outGoing = this.costing.outGoing || 0;
   const calCharges = this.costing.calCharges || 0;
@@ -177,7 +198,6 @@ projectSchema.pre('save', function() {
   
   this.costing.total = inGoing + outGoing + calCharges + other + foreignBankCharges + loanInterest + freightCharges;
   
-  // Calculate profit and net profit
   if (this.buyer.paymentTotal && this.supplier.paymentTotal) {
     this.costing.profit = this.buyer.paymentTotal - this.supplier.paymentTotal;
     this.costing.profitPercentage = this.supplier.paymentTotal > 0 
@@ -193,61 +213,65 @@ projectSchema.pre('findOneAndUpdate', function() {
   const update = this.getUpdate();
   
   if (update.supplier) {
-    // Ensure nested objects exist
+    // Keep existing supplier calculations
     if (!update.supplier.proformaInvoice) update.supplier.proformaInvoice = {};
     if (!update.supplier.advancePayment) update.supplier.advancePayment = {};
     if (!update.supplier.balancePayment) update.supplier.balancePayment = {};
     if (!update.supplier.summary) update.supplier.summary = {};
     
-    // SUPPLIER CALCULATIONS
-    
-    // 1. Final Invoice Amount = Supplier Invoice Amount - Credit Note
     const supplierInvoiceAmount = update.supplier?.proformaInvoice?.invoiceAmount || 0;
     const creditNote = update.supplier?.proformaInvoice?.creditNote || 0;
     update.supplier.proformaInvoice.finalInvoiceAmount = supplierInvoiceAmount - creditNote;
     
-    // 2. Advance Payment: Total Payment = Loan Amount + TWL Contribution
     const loanAmount = update.supplier?.advancePayment?.loanAmount || 0;
     const twlContribution = update.supplier?.advancePayment?.twlContribution || 0;
     update.supplier.advancePayment.totalPayment = loanAmount + twlContribution;
     
-    // 3. Advance Payment: Balance Amount = Final Invoice Amount - Total Payment
     const finalInvoice = update.supplier.proformaInvoice.finalInvoiceAmount;
     update.supplier.advancePayment.balanceAmount = finalInvoice - update.supplier.advancePayment.totalPayment;
     
-    // 4. Balance Payment: Total Payment = Amount + TWL Contribution
     const supplierBalanceAmount = update.supplier?.balancePayment?.amount || 0;
     const supplierBalanceTwl = update.supplier?.balancePayment?.twlContribution || 0;
     update.supplier.balancePayment.totalPayment = supplierBalanceAmount + supplierBalanceTwl;
     
-    // 5. Supplier Summary Calculations
-    // Total Amount = Total Payment (Advance) + Total Payment (Balance)
     update.supplier.summary.totalAmount = 
       update.supplier.advancePayment.totalPayment + 
       update.supplier.balancePayment.totalPayment;
     
-    // Cancel Amount = Credit Note - Total Amount
     update.supplier.summary.cancelAmount = creditNote - update.supplier.summary.totalAmount;
-    
-    // Balance Payment = Final Invoice Amount - Total Amount
     update.supplier.summary.balancePayment = finalInvoice - update.supplier.summary.totalAmount;
-    
-    // Supplier payment total
     update.supplier.paymentTotal = update.supplier.summary.totalAmount;
   }
 
   if (update.buyer) {
-    // Buyer balance payment total calculation
-    if (!update.buyer.balancePayment) {
-      update.buyer.balancePayment = {};
-    }
-    const buyerBalanceAmount = update.buyer?.balancePayment?.amount || 0;
-    const buyerBalanceTwl = update.buyer?.balancePayment?.twlContribution || 0;
-    update.buyer.balancePayment.totalPayment = buyerBalanceAmount + buyerBalanceTwl;
+    // NEW BUYER CALCULATIONS
+    if (!update.buyer.proformaInvoice) update.buyer.proformaInvoice = {};
+    if (!update.buyer.advancePayment) update.buyer.advancePayment = {};
+    if (!update.buyer.balancePayment) update.buyer.balancePayment = {};
+    if (!update.buyer.summary) update.buyer.summary = {};
     
-    // Buyer payment total
-    const buyerAdvance = update.buyer?.advancePayment?.amount || 0;
-    update.buyer.paymentTotal = buyerAdvance + update.buyer.balancePayment.totalPayment;
+    const buyerCreditNote = update.buyer?.proformaInvoice?.creditNote || 0;
+    const buyerBankInterest = update.buyer?.proformaInvoice?.bankInterest || 0;
+    const buyerFreightCharges = update.buyer?.proformaInvoice?.freightCharges || 0;
+    const buyerTwlInvoiceAmount = update.buyer?.proformaInvoice?.twlInvoiceAmount || 0;
+    const buyerCommission = update.buyer?.proformaInvoice?.commission || 0;
+    
+    update.buyer.proformaInvoice.finalInvoiceAmount = 
+      buyerTwlInvoiceAmount + buyerCreditNote + buyerBankInterest + 
+      buyerFreightCharges + buyerCommission;
+    
+    const buyerAdvanceTwlReceived = update.buyer?.advancePayment?.twlReceived || 0;
+    update.buyer.advancePayment.balanceAmount = 
+      update.buyer.proformaInvoice.finalInvoiceAmount - buyerAdvanceTwlReceived;
+    
+    const buyerBalanceTwlReceived = update.buyer?.balancePayment?.twlReceived || 0;
+    
+    update.buyer.summary.totalReceived = buyerAdvanceTwlReceived + buyerBalanceTwlReceived;
+    update.buyer.summary.cancel = buyerCreditNote - update.buyer.summary.totalReceived;
+    update.buyer.summary.balanceReceived = 
+      update.buyer.proformaInvoice.finalInvoiceAmount - update.buyer.summary.totalReceived;
+    
+    update.buyer.paymentTotal = update.buyer.summary.totalReceived;
   }
 
   // Calculate costing
@@ -266,7 +290,6 @@ projectSchema.pre('findOneAndUpdate', function() {
     update.costing.netProfit = profit - update.costing.total;
   }
 
-  // Calculate profit
   const supplierTotal = update.supplier?.paymentTotal || 0;
   const buyerTotal = update.buyer?.paymentTotal || 0;
   
