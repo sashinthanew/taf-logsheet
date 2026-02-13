@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import './AdminDashboard.css';
-import API_BASE_URL from '../config/api';
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [formData, setFormData] = useState({
@@ -257,7 +256,7 @@ const AdminDashboard = ({ user, onLogout }) => {
   const fetchProjects = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/projects`, {
+      const response = await fetch('http://localhost:5000/api/projects', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -654,7 +653,7 @@ const AdminDashboard = ({ user, onLogout }) => {
       }
       
       console.log('Fetching Excel file from server...');
-      const response = await fetch(`${API_BASE_URL}/api/projects/export/excel`, {
+      const response = await fetch('http://localhost:5000/api/projects/export/excel', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`

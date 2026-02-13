@@ -35,7 +35,7 @@ function App() {
 
   // If not logged in, show login page
   if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Login onLogin={handleLoginSuccess} />;
   }
 
   // If logged in as admin, show admin dashboard

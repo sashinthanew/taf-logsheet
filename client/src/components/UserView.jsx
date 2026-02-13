@@ -12,7 +12,6 @@ import {
   LineElement,
 } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import API_BASE_URL from '../config/api';
 import './UserView.css';
 
 // Register ChartJS components
@@ -43,7 +42,7 @@ const UserView = ({ user, onLogout }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/projects`, {
+      const response = await fetch('http://localhost:5000/api/projects', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
